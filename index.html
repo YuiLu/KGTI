@@ -15,7 +15,7 @@
     <section id="page-start" class="page active">
       <div class="start-container">
         <div class="logo-area">
-          <canvas id="logo-canvas" width="200" height="200"></canvas>
+          <img id="logo-img" src="assets/SOUL.png" alt="KGTI Logo" width="200" height="200">
         </div>
         <h1 class="title glitch" data-text="KGTI">KGTI</h1>
         <p class="subtitle">Kigurumi Generation Type Indicator</p>
@@ -51,7 +51,7 @@
     <section id="page-loading" class="page">
       <div class="loading-container">
         <div class="mask-animation">
-          <canvas id="loading-canvas" width="160" height="160"></canvas>
+          <img id="loading-img" src="assets/SOUL.png" alt="Loading" width="160" height="160" class="loading-spin">
         </div>
         <p class="loading-text">正在解析你的Kig灵魂...</p>
         <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
@@ -63,7 +63,7 @@
       <div class="result-container">
         <div class="result-card" id="result-card">
           <div class="result-badge" id="result-badge"></div>
-          <canvas id="result-avatar" width="280" height="280"></canvas>
+          <img id="result-avatar" width="280" height="280" alt="Avatar">
           <h2 class="result-type" id="result-type"></h2>
           <p class="result-name" id="result-name"></p>
           <p class="result-quote" id="result-quote"></p>
@@ -85,7 +85,6 @@
 
   <script src="questions.js"></script>
   <script src="scoring.js"></script>
-  <script src="avatar.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

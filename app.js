@@ -6,6 +6,102 @@ let currentQuestions = [];
 let currentIndex = 0;
 let answers = [];
 
+// ---- 工具函数 ----
+function hexToRGBA(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ---- 雷达图绘制 ----
+function drawRadarChart(canvasId, scores, colors) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const maxR = Math.min(cx, cy) - 40;
+  const labels = ['生存力', '表现力', '社交力', '经济力'];
+  const n = labels.length;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // 背景网格
+  for (let level = 1; level <= 4; level++) {
+    const r = (maxR / 4) * level;
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const angle = (Math.PI * 2 / n) * i - Math.PI / 2;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // 轴线
+  for (let i = 0; i < n; i++) {
+    const angle = (Math.PI * 2 / n) * i - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + maxR * Math.cos(angle), cy + maxR * Math.sin(angle));
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.stroke();
+  }
+
+  // 数据区域
+  ctx.beginPath();
+  scores.forEach((score, i) => {
+    const val = Math.max(0, Math.min(100, score)) / 100;
+    const angle = (Math.PI * 2 / n) * i - Math.PI / 2;
+    const x = cx + maxR * val * Math.cos(angle);
+    const y = cy + maxR * val * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = hexToRGBA(colors.primary, 0.25);
+  ctx.fill();
+  ctx.strokeStyle = colors.primary;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 数据点
+  scores.forEach((score, i) => {
+    const val = Math.max(0, Math.min(100, score)) / 100;
+    const angle = (Math.PI * 2 / n) * i - Math.PI / 2;
+    const x = cx + maxR * val * Math.cos(angle);
+    const y = cy + maxR * val * Math.sin(angle);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = colors.primary;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // 标签
+  ctx.font = '13px "Microsoft YaHei", sans-serif';
+  ctx.fillStyle = '#c0c0d0';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  labels.forEach((label, i) => {
+    const angle = (Math.PI * 2 / n) * i - Math.PI / 2;
+    const lr = maxR + 24;
+    const x = cx + lr * Math.cos(angle);
+    const y = cy + lr * Math.sin(angle);
+    ctx.fillText(`${label} ${scores[i]}`, x, y);
+  });
+}
+
 // ---- 页面管理 ----
 function showPage(pageId) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -143,9 +239,6 @@ function submitTest() {
     );
     document.querySelector('.loading-text').textContent = loadingTexts[textIdx];
 
-    // 更新加载动画
-    AvatarGenerator.drawLoading('loading-canvas', progress / 100);
-
     if (progress >= 100) {
       clearInterval(interval);
       setTimeout(showResult, 500);
@@ -179,8 +272,8 @@ function showResult() {
   badge.style.color = info.badgeColor;
   badge.style.border = `1px solid ${hexToRGBA(info.badgeColor, 0.4)}`;
 
-  // 绘制头像
-  AvatarGenerator.draw('result-avatar', personality);
+  // 设置头像图片
+  document.getElementById('result-avatar').src = `assets/${personality}.png`;
 
   // 雷达图
   drawRadarChart('radar-canvas', modelScores, info.colors);
@@ -277,9 +370,9 @@ function saveImage() {
   ctx.fillText('KGTI · Kigurumi Generation Type Indicator', w / 2, 40);
 
   // 头像
-  const avatarCanvas = document.getElementById('result-avatar');
-  if (avatarCanvas) {
-    ctx.drawImage(avatarCanvas, (w - 200) / 2, 60, 200, 200);
+  const avatarImg = document.getElementById('result-avatar');
+  if (avatarImg && avatarImg.complete) {
+    ctx.drawImage(avatarImg, (w - 200) / 2, 60, 200, 200);
   }
 
   // 人格类型
@@ -339,9 +432,6 @@ function restartTest() {
 
 // ---- 初始化 ----
 document.addEventListener('DOMContentLoaded', () => {
-  // 绘制 Logo
-  AvatarGenerator.drawLogo('logo-canvas');
-
   // 随机测试人数
   const count = 8964 + Math.floor(Math.random() * 500);
   document.getElementById('test-count').textContent = count.toLocaleString();

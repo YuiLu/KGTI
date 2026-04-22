@@ -292,6 +292,19 @@ body {
 
 .mask-animation { margin-bottom: 24px; }
 
+.loading-spin {
+  object-fit: contain;
+  border-radius: 50%;
+  animation: spinPulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(224,64,251,0.4));
+}
+
+@keyframes spinPulse {
+  0% { transform: rotate(0deg) scale(1); opacity: 0.7; }
+  50% { transform: rotate(180deg) scale(1.1); opacity: 1; }
+  100% { transform: rotate(360deg) scale(1); opacity: 0.7; }
+}
+
 .loading-text {
   font-size: 16px;
   color: var(--text-dim);
