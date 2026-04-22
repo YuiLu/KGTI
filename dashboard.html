@@ -177,6 +177,36 @@
       grid-column: 1 / -1;
     }
 
+    /* 图表内联控制栏 */
+    .chart-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .chart-toolbar .granularity-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chart-toolbar .granularity-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .chart-toolbar .granularity-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
     /* 表格 */
     .data-table {
       width: 100%;
@@ -390,6 +420,16 @@
       const grid = document.getElementById('chart-grid');
       grid.innerHTML = `
         <div class="chart-card full-width"><h3>📈 每日提交趋势</h3><canvas id="chart-trend"></canvas></div>
+        <div class="chart-card full-width">
+          <h3>👥 用户访问量趋势</h3>
+          <div class="chart-toolbar">
+            <button class="granularity-btn active" data-granularity="hour" onclick="switchVisitGranularity('hour', this)">按小时</button>
+            <button class="granularity-btn" data-granularity="day" onclick="switchVisitGranularity('day', this)">按天</button>
+            <button class="granularity-btn" data-granularity="week" onclick="switchVisitGranularity('week', this)">按周</button>
+            <button class="granularity-btn" data-granularity="month" onclick="switchVisitGranularity('month', this)">按月</button>
+          </div>
+          <canvas id="chart-visits"></canvas>
+        </div>
         <div class="chart-card"><h3>🎭 人格类型分布</h3><canvas id="chart-personality-pie"></canvas></div>
         <div class="chart-card"><h3>📊 人格类型柱状图</h3><canvas id="chart-personality-bar"></canvas></div>
         <div class="chart-card full-width"><h3>🔄 用户行为漏斗</h3><canvas id="chart-funnel"></canvas></div>
@@ -405,6 +445,7 @@
       `;
 
       renderTrendChart(results);
+      renderVisitChart(events, 'hour');
       renderPersonalityPie(results);
       renderPersonalityBar(results);
       renderFunnelChart(events);
@@ -475,6 +516,135 @@
         }
       });
       chartInstances.push(chart);
+    }
+
+    // ----- 用户访问量折线图（多尺度）-----
+    let cachedVisitEvents = null;
+    let visitChartInstance = null;
+
+    function switchVisitGranularity(granularity, btn) {
+      // 切换按钮样式
+      document.querySelectorAll('.granularity-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // 重新渲染
+      if (cachedVisitEvents) {
+        renderVisitChart(cachedVisitEvents, granularity);
+      }
+    }
+
+    function getWeekLabel(dateStr) {
+      const d = new Date(dateStr);
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+      return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    }
+
+    function aggregateVisits(events, granularity) {
+      const pageViews = events.filter(e => e.event_type === 'page_view');
+      const buckets = {};     // 访问次数
+      const uvBuckets = {};   // 独立用户
+
+      pageViews.forEach(e => {
+        if (!e.created_at) return;
+        const dt = new Date(e.created_at);
+        let key;
+        switch (granularity) {
+          case 'hour':
+            key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:00`;
+            break;
+          case 'day':
+            key = e.created_at.slice(0, 10);
+            break;
+          case 'week':
+            key = getWeekLabel(e.created_at);
+            break;
+          case 'month':
+            key = e.created_at.slice(0, 7);
+            break;
+        }
+        buckets[key] = (buckets[key] || 0) + 1;
+        if (!uvBuckets[key]) uvBuckets[key] = new Set();
+        uvBuckets[key].add(e.session_id);
+      });
+
+      const sortedKeys = Object.keys(buckets).sort();
+      return {
+        labels: sortedKeys,
+        pvData: sortedKeys.map(k => buckets[k]),
+        uvData: sortedKeys.map(k => uvBuckets[k].size)
+      };
+    }
+
+    function renderVisitChart(events, granularity = 'hour') {
+      cachedVisitEvents = events;
+
+      // 销毁旧的访问量图表
+      if (visitChartInstance) {
+        const idx = chartInstances.indexOf(visitChartInstance);
+        if (idx > -1) chartInstances.splice(idx, 1);
+        visitChartInstance.destroy();
+        visitChartInstance = null;
+      }
+
+      const { labels, pvData, uvData } = aggregateVisits(events, granularity);
+
+      const granularityLabels = { hour: '小时', day: '天', week: '周', month: '月' };
+      const maxTicks = granularity === 'hour' ? 24 : granularity === 'day' ? 15 : 12;
+
+      visitChartInstance = new Chart(document.getElementById('chart-visits'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: `PV（页面访问次数 / ${granularityLabels[granularity]}）`,
+              data: pvData,
+              borderColor: '#e040fb',
+              backgroundColor: 'rgba(224,64,251,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: labels.length > 48 ? 0 : 3,
+              yAxisID: 'y'
+            },
+            {
+              label: `UV（独立用户数 / ${granularityLabels[granularity]}）`,
+              data: uvData,
+              borderColor: '#00e5ff',
+              backgroundColor: 'rgba(0,229,255,0.08)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: labels.length > 48 ? 0 : 3,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const lbl = items[0]?.label || '';
+                  if (granularity === 'week') return `第 ${lbl.split('-W')[1]} 周（${lbl.split('-W')[0]}）`;
+                  return lbl;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: maxTicks, maxRotation: 45 },
+              title: { display: true, text: `时间（${granularityLabels[granularity]}）` }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: '访问量' }
+            }
+          }
+        }
+      });
+      chartInstances.push(visitChartInstance);
     }
 
     // ----- 人格类型饼图 -----
