@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KGTI 数据看板</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --purple: #bc8cff;
+      --pink: #f778ba;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      background: linear-gradient(135deg, #e040fb, #00e5ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .header p { color: var(--text-dim); font-size: 14px; }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      transition: opacity 0.5s;
+    }
+
+    .loading-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-overlay .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .config-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .config-bar label { color: var(--text-dim); font-size: 13px; }
+
+    .config-bar select, .config-bar input {
+      padding: 6px 10px;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .config-bar button {
+      padding: 6px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .config-bar button:hover { opacity: 0.85; }
+
+    /* KPI 指标卡 */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .kpi-card .kpi-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .kpi-card .kpi-label {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .kpi-card:nth-child(2) .kpi-value { color: var(--green); }
+    .kpi-card:nth-child(3) .kpi-value { color: var(--purple); }
+    .kpi-card:nth-child(4) .kpi-value { color: var(--pink); }
+    .kpi-card:nth-child(5) .kpi-value { color: var(--orange); }
+    .kpi-card:nth-child(6) .kpi-value { color: var(--red); }
+
+    /* 图表网格 */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .chart-card h3 {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chart-card canvas {
+      max-height: 320px;
+    }
+
+    .chart-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    /* 表格 */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 8px 12px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .data-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(48,54,61,0.5);
+    }
+
+    .data-table tr:hover td { background: rgba(88,166,255,0.04); }
+
+    .error-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--red);
+    }
+
+    @media (max-width: 560px) {
+      .chart-grid { grid-template-columns: 1fr; }
+      body { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <p style="color:var(--text-dim)">正在从 Supabase 加载数据...</p>
+  </div>
+
+  <div class="header">
+    <h1>📊 KGTI 数据看板</h1>
+    <p>实时统计数据 · 本地查看 · 数据直连 Supabase</p>
+  </div>
+
+  <div class="config-bar">
+    <label>环境</label>
+    <select id="env-filter">
+      <option value="prod" selected>正式 (prod)</option>
+      <option value="dev">测试 (dev)</option>
+      <option value="all">全部</option>
+    </select>
+    <label>时间范围</label>
+    <select id="time-range">
+      <option value="7">近 7 天</option>
+      <option value="30" selected>近 30 天</option>
+      <option value="90">近 90 天</option>
+      <option value="all">全部</option>
+    </select>
+    <button onclick="loadDashboard()">刷新数据</button>
+    <span id="last-update" style="color:var(--text-dim);font-size:12px;margin-left:auto;"></span>
+  </div>
+
+  <!-- KPI 卡片 -->
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <!-- 图表区域 -->
+  <div class="chart-grid" id="chart-grid"></div>
+
+  <script>
+    // ==================== 配置 ====================
+    const SUPABASE_URL = 'https://hiuhfieznrvuquxkooao.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_C2LxRpiSRyeEZrhu7HKkfQ_YvesOoH2';
+    const TYPES = ['ROBO', 'PURE', 'SEXY', 'FAKE', 'HIDE', 'SHOW', 'RICH', 'SOUL'];
+    const TYPE_COLORS = {
+      ROBO: '#78909c', PURE: '#4fc3f7', SEXY: '#ab47bc', FAKE: '#7e57c2',
+      HIDE: '#90a4ae', SHOW: '#ffa726', RICH: '#ffd54f', SOUL: '#e040fb'
+    };
+    const EVENT_LABELS = {
+      page_view: '页面访问', test_start: '开始测试', test_complete: '完成测试',
+      share_click: '分享点击', share_native: '原生分享', share_copy: '复制文案',
+      save_image: '保存图片', retest: '重新测试', result_stay: '结果页停留',
+      qq_group_view: 'QQ群弹窗', view_cached_result: '查看缓存结果'
+    };
+
+    // Chart.js 全局样式
+    Chart.defaults.color = '#8b949e';
+    Chart.defaults.borderColor = 'rgba(48,54,61,0.6)';
+    Chart.defaults.font.family = '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+
+    let chartInstances = [];
+
+    // ==================== API 请求 ====================
+    async function supabaseQuery(table, params = '') {
+      const url = `${SUPABASE_URL}/rest/v1/${table}?${params}`;
+      const res = await fetch(url, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Prefer': 'count=exact'
+        }
+      });
+      const contentRange = res.headers.get('content-range');
+      const total = contentRange ? parseInt(contentRange.split('/')[1]) : null;
+      const data = await res.json();
+      return { data, total };
+    }
+
+    // 分页获取全量数据
+    async function fetchAll(table, filter = '') {
+      const pageSize = 1000;
+      let all = [];
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const sep = filter ? '&' : '';
+        const params = `${filter}${sep}select=*&order=created_at.asc&offset=${offset}&limit=${pageSize}`;
+        const { data } = await supabaseQuery(table, params);
+        all = all.concat(data);
+        hasMore = data.length === pageSize;
+        offset += pageSize;
+      }
+      return all;
+    }
+
+    // ==================== 主加载 ====================
+    async function loadDashboard() {
+      const overlay = document.getElementById('loading-overlay');
+      overlay.classList.remove('hide');
+
+      try {
+        const env = document.getElementById('env-filter').value;
+        const range = document.getElementById('time-range').value;
+
+        let envFilter = env !== 'all' ? `env=eq.${env}` : '';
+        let timeFilter = '';
+        if (range !== 'all') {
+          const since = new Date();
+          since.setDate(since.getDate() - parseInt(range));
+          timeFilter = `created_at=gte.${since.toISOString()}`;
+        }
+
+        const filter = [envFilter, timeFilter].filter(Boolean).join('&');
+
+        // 并行加载
+        const [results, events] = await Promise.all([
+          fetchAll('test_results', filter),
+          fetchAll('user_events', filter)
+        ]);
+
+        // 销毁旧图表
+        chartInstances.forEach(c => c.destroy());
+        chartInstances = [];
+
+        renderKPIs(results, events);
+        renderCharts(results, events);
+
+        document.getElementById('last-update').textContent =
+          `更新于 ${new Date().toLocaleString('zh-CN')}`;
+      } catch (e) {
+        document.getElementById('kpi-grid').innerHTML =
+          `<div class="error-msg">❌ 加载失败: ${e.message}<br><br>请检查网络连接和 Supabase 配置</div>`;
+      } finally {
+        overlay.classList.add('hide');
+      }
+    }
+
+    // ==================== KPI 卡片 ====================
+    function renderKPIs(results, events) {
+      const totalTests = results.length;
+      const uniqueUsers = new Set(results.map(r => r.session_id)).size;
+
+      const completeSessions = new Set(events.filter(e => e.event_type === 'test_complete').map(e => e.session_id));
+      const shareSessions = new Set(events.filter(e =>
+        ['share_click', 'share_native', 'share_copy'].includes(e.event_type)
+      ).map(e => e.session_id));
+      const saveSessions = new Set(events.filter(e => e.event_type === 'save_image').map(e => e.session_id));
+      const retestSessions = new Set(events.filter(e => e.event_type === 'retest').map(e => e.session_id));
+
+      const shareRate = completeSessions.size > 0
+        ? ((shareSessions.size / completeSessions.size) * 100).toFixed(1)
+        : '0.0';
+
+      const saveRate = completeSessions.size > 0
+        ? ((saveSessions.size / completeSessions.size) * 100).toFixed(1)
+        : '0.0';
+
+      const retestRate = completeSessions.size > 0
+        ? ((retestSessions.size / completeSessions.size) * 100).toFixed(1)
+        : '0.0';
+
+      const stayEvents = events.filter(e => e.event_type === 'result_stay' && e.event_data?.seconds);
+      const avgStay = stayEvents.length > 0
+        ? (stayEvents.reduce((s, e) => s + e.event_data.seconds, 0) / stayEvents.length).toFixed(1)
+        : '-';
+
+      document.getElementById('kpi-grid').innerHTML = `
+        <div class="kpi-card"><div class="kpi-value">${totalTests.toLocaleString()}</div><div class="kpi-label">总测试次数</div></div>
+        <div class="kpi-card"><div class="kpi-value">${uniqueUsers.toLocaleString()}</div><div class="kpi-label">独立用户数</div></div>
+        <div class="kpi-card"><div class="kpi-value">${shareRate}%</div><div class="kpi-label">分享率</div></div>
+        <div class="kpi-card"><div class="kpi-value">${saveRate}%</div><div class="kpi-label">保存图片率</div></div>
+        <div class="kpi-card"><div class="kpi-value">${retestRate}%</div><div class="kpi-label">重测率</div></div>
+        <div class="kpi-card"><div class="kpi-value">${avgStay}s</div><div class="kpi-label">平均结果页停留</div></div>
+      `;
+    }
+
+    // ==================== 图表渲染 ====================
+    function renderCharts(results, events) {
+      const grid = document.getElementById('chart-grid');
+      grid.innerHTML = `
+        <div class="chart-card full-width"><h3>📈 每日提交趋势</h3><canvas id="chart-trend"></canvas></div>
+        <div class="chart-card"><h3>🎭 人格类型分布</h3><canvas id="chart-personality-pie"></canvas></div>
+        <div class="chart-card"><h3>📊 人格类型柱状图</h3><canvas id="chart-personality-bar"></canvas></div>
+        <div class="chart-card full-width"><h3>🔄 用户行为漏斗</h3><canvas id="chart-funnel"></canvas></div>
+        <div class="chart-card"><h3>📱 设备分布（屏幕宽度）</h3><canvas id="chart-device"></canvas></div>
+        <div class="chart-card"><h3>🕐 小时分布（提交时间）</h3><canvas id="chart-hourly"></canvas></div>
+        <div class="chart-card full-width"><h3>🎯 各人格类型分享率对比</h3><canvas id="chart-share-by-type"></canvas></div>
+        <div class="chart-card full-width"><h3>📋 事件明细统计</h3>
+          <table class="data-table" id="event-table">
+            <thead><tr><th>事件类型</th><th>次数</th><th>独立用户数</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      `;
+
+      renderTrendChart(results);
+      renderPersonalityPie(results);
+      renderPersonalityBar(results);
+      renderFunnelChart(events);
+      renderDeviceChart(results);
+      renderHourlyChart(results);
+      renderShareByType(results, events);
+      renderEventTable(events);
+    }
+
+    // ----- 每日提交趋势（折线图）-----
+    function renderTrendChart(results) {
+      const dailyCounts = {};
+      results.forEach(r => {
+        const day = r.created_at?.slice(0, 10);
+        if (day) dailyCounts[day] = (dailyCounts[day] || 0) + 1;
+      });
+
+      const sortedDays = Object.keys(dailyCounts).sort();
+      // 累计趋势
+      let cumulative = 0;
+      const cumulativeData = sortedDays.map(d => { cumulative += dailyCounts[d]; return cumulative; });
+
+      const chart = new Chart(document.getElementById('chart-trend'), {
+        type: 'line',
+        data: {
+          labels: sortedDays,
+          datasets: [
+            {
+              label: '每日新增',
+              data: sortedDays.map(d => dailyCounts[d]),
+              borderColor: '#58a6ff',
+              backgroundColor: 'rgba(88,166,255,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: sortedDays.length > 60 ? 0 : 3,
+              yAxisID: 'y'
+            },
+            {
+              label: '累计总数',
+              data: cumulativeData,
+              borderColor: '#3fb950',
+              borderDash: [5, 5],
+              pointRadius: 0,
+              tension: 0.3,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 15, maxRotation: 45 }
+            },
+            y: {
+              position: 'left',
+              title: { display: true, text: '每日新增' },
+              beginAtZero: true
+            },
+            y1: {
+              position: 'right',
+              title: { display: true, text: '累计总数' },
+              beginAtZero: true,
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 人格类型饼图 -----
+    function renderPersonalityPie(results) {
+      const counts = {};
+      TYPES.forEach(t => counts[t] = 0);
+      results.forEach(r => { if (counts[r.personality] !== undefined) counts[r.personality]++; });
+
+      const chart = new Chart(document.getElementById('chart-personality-pie'), {
+        type: 'doughnut',
+        data: {
+          labels: TYPES.map(t => t),
+          datasets: [{
+            data: TYPES.map(t => counts[t]),
+            backgroundColor: TYPES.map(t => TYPE_COLORS[t]),
+            borderColor: '#161b22',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'right', labels: { padding: 12 } },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  const total = ctx.dataset.data.reduce((s, v) => s + v, 0);
+                  const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                  return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 人格类型柱状图 -----
+    function renderPersonalityBar(results) {
+      const counts = {};
+      TYPES.forEach(t => counts[t] = 0);
+      results.forEach(r => { if (counts[r.personality] !== undefined) counts[r.personality]++; });
+
+      const sorted = TYPES.slice().sort((a, b) => counts[b] - counts[a]);
+
+      const chart = new Chart(document.getElementById('chart-personality-bar'), {
+        type: 'bar',
+        data: {
+          labels: sorted,
+          datasets: [{
+            label: '测试人数',
+            data: sorted.map(t => counts[t]),
+            backgroundColor: sorted.map(t => TYPE_COLORS[t] + 'cc'),
+            borderColor: sorted.map(t => TYPE_COLORS[t]),
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 用户行为漏斗 -----
+    function renderFunnelChart(events) {
+      const funnelSteps = [
+        { key: 'page_view', label: '访问页面' },
+        { key: 'test_start', label: '开始测试' },
+        { key: 'test_complete', label: '完成测试' },
+        { key: 'share_click', label: '分享/复制/保存' },
+        { key: 'retest', label: '重新测试' }
+      ];
+
+      const stepCounts = funnelSteps.map(step => {
+        if (step.key === 'share_click') {
+          return new Set(events.filter(e =>
+            ['share_click', 'share_native', 'share_copy', 'save_image'].includes(e.event_type)
+          ).map(e => e.session_id)).size;
+        }
+        return new Set(events.filter(e => e.event_type === step.key).map(e => e.session_id)).size;
+      });
+
+      const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#f778ba', '#d29922'];
+
+      const chart = new Chart(document.getElementById('chart-funnel'), {
+        type: 'bar',
+        data: {
+          labels: funnelSteps.map(s => s.label),
+          datasets: [{
+            data: stepCounts,
+            backgroundColor: colors.map(c => c + '99'),
+            borderColor: colors,
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterLabel: (ctx) => {
+                  if (ctx.dataIndex === 0 || stepCounts[0] === 0) return '';
+                  const pct = ((ctx.parsed.y / stepCounts[0]) * 100).toFixed(1);
+                  return `转化率: ${pct}%（相对访问）`;
+                }
+              }
+            }
+          },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 设备分布 -----
+    function renderDeviceChart(results) {
+      const categories = { '手机 (≤480)': 0, '平板 (481-1024)': 0, '桌面 (>1024)': 0, '未知': 0 };
+      results.forEach(r => {
+        if (!r.screen_size) { categories['未知']++; return; }
+        const w = parseInt(r.screen_size.split('x')[0]);
+        if (isNaN(w)) { categories['未知']++; return; }
+        if (w <= 480) categories['手机 (≤480)']++;
+        else if (w <= 1024) categories['平板 (481-1024)']++;
+        else categories['桌面 (>1024)']++;
+      });
+
+      const labels = Object.keys(categories).filter(k => categories[k] > 0);
+      const data = labels.map(k => categories[k]);
+      const deviceColors = ['#f778ba', '#bc8cff', '#58a6ff', '#8b949e'];
+
+      const chart = new Chart(document.getElementById('chart-device'), {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: deviceColors.slice(0, labels.length),
+            borderColor: '#161b22',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 小时分布 -----
+    function renderHourlyChart(results) {
+      const hourCounts = new Array(24).fill(0);
+      results.forEach(r => {
+        if (!r.created_at) return;
+        const h = new Date(r.created_at).getHours();
+        hourCounts[h]++;
+      });
+
+      const chart = new Chart(document.getElementById('chart-hourly'), {
+        type: 'bar',
+        data: {
+          labels: hourCounts.map((_, i) => `${i}:00`),
+          datasets: [{
+            label: '提交次数',
+            data: hourCounts,
+            backgroundColor: hourCounts.map((v, i) => {
+              // 高亮峰值时段
+              const max = Math.max(...hourCounts);
+              return v > max * 0.7 ? '#e040fb99' : '#58a6ff66';
+            }),
+            borderRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { title: { display: true, text: '小时 (本地时间)' } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 各类型分享率对比 -----
+    function renderShareByType(results, events) {
+      // 按人格类型分组的完成用户
+      const completedByType = {};
+      const sharedByType = {};
+      TYPES.forEach(t => { completedByType[t] = new Set(); sharedByType[t] = new Set(); });
+
+      // 建立 session -> personality 映射
+      const sessionPersonality = {};
+      results.forEach(r => { sessionPersonality[r.session_id] = r.personality; });
+
+      events.forEach(e => {
+        const p = sessionPersonality[e.session_id];
+        if (!p || !completedByType[p]) return;
+        if (e.event_type === 'test_complete') completedByType[p].add(e.session_id);
+        if (['share_click', 'share_native', 'share_copy', 'save_image'].includes(e.event_type)) {
+          sharedByType[p].add(e.session_id);
+        }
+      });
+
+      const rates = TYPES.map(t => {
+        const c = completedByType[t].size;
+        const s = sharedByType[t].size;
+        return c > 0 ? ((s / c) * 100) : 0;
+      });
+
+      const chart = new Chart(document.getElementById('chart-share-by-type'), {
+        type: 'bar',
+        data: {
+          labels: TYPES,
+          datasets: [
+            {
+              label: '完成测试人数',
+              data: TYPES.map(t => completedByType[t].size),
+              backgroundColor: TYPES.map(t => TYPE_COLORS[t] + '66'),
+              borderColor: TYPES.map(t => TYPE_COLORS[t]),
+              borderWidth: 1,
+              borderRadius: 4,
+              yAxisID: 'y'
+            },
+            {
+              label: '分享率 (%)',
+              data: rates.map(r => r.toFixed(1)),
+              type: 'line',
+              borderColor: '#f85149',
+              backgroundColor: 'rgba(248,81,73,0.1)',
+              pointBackgroundColor: '#f85149',
+              tension: 0.3,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { position: 'left', beginAtZero: true, title: { display: true, text: '人数' } },
+            y1: { position: 'right', beginAtZero: true, max: 100, title: { display: true, text: '分享率 (%)' }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+      chartInstances.push(chart);
+    }
+
+    // ----- 事件明细表 -----
+    function renderEventTable(events) {
+      const eventCounts = {};
+      const eventUsers = {};
+
+      events.forEach(e => {
+        const t = e.event_type;
+        eventCounts[t] = (eventCounts[t] || 0) + 1;
+        if (!eventUsers[t]) eventUsers[t] = new Set();
+        eventUsers[t].add(e.session_id);
+      });
+
+      const sorted = Object.keys(eventCounts).sort((a, b) => eventCounts[b] - eventCounts[a]);
+
+      const tbody = document.querySelector('#event-table tbody');
+      tbody.innerHTML = sorted.map(t => `
+        <tr>
+          <td>${EVENT_LABELS[t] || t} <span style="color:var(--text-dim)">(${t})</span></td>
+          <td>${eventCounts[t].toLocaleString()}</td>
+          <td>${eventUsers[t].size.toLocaleString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    // ==================== 启动 ====================
+    loadDashboard();
+  </script>
+</body>
+</html>

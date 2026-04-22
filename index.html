@@ -24,6 +24,9 @@
         <button id="btn-start" class="btn-primary" onclick="startTest()">
           <span>戴 上 面 具 开 始 测 试</span>
         </button>
+        <div id="cached-result-wrap" class="cached-result-wrap" style="display:none;">
+          <button class="btn-cached-result" onclick="viewLastResult()">📋 查看上次测试结果</button>
+        </div>
         <div class="footer-note">已有 <span id="test-count">8,964</span> 位Kiger完成测试</div>
       </div>
     </section>
@@ -85,6 +88,21 @@
           <a class="creator-icon is-bilibili" href="https://b23.tv/Ss4aFjy" target="_blank" rel="noopener noreferrer" title="B站 YuiLu_"><img src="assets/icon-bilibili.svg" alt="B" width="14" height="14"></a>
           <a class="creator-icon is-xhs" href="https://xhslink.com/m/6cv0fMPO6oI" target="_blank" rel="noopener noreferrer" title="小红书 Yui"><img src="assets/icon-xhs.svg" alt="XHS" width="14" height="14"></a>
           <a class="creator-icon is-douyin" href="https://v.douyin.com/dC2XB-zRZbU/" target="_blank" rel="noopener noreferrer" title="抖音 Yui"><img src="assets/icon-douyin.svg" alt="DY" width="14" height="14"></a>
+        </div>
+        <!-- QQ 群入口 -->
+        <div class="qq-group-entry">
+          <button class="btn-qq-group" onclick="toggleQQGroupModal()" title="加入 KGTI 交流群">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>加入交流群</span>
+          </button>
+        </div>
+        <!-- QQ 群二维码弹窗 -->
+        <div class="qq-group-modal" id="qq-group-modal" onclick="closeQQGroupModal(event)">
+          <div class="qq-group-modal-content">
+            <button class="qq-group-modal-close" onclick="closeQQGroupModal(event, true)">&times;</button>
+            <img src="assets/QQGroupQRCode.png" alt="QQ群二维码" class="qq-group-qr-img">
+            <p class="qq-group-modal-text">长按或扫码加入 KGTI 交流群</p>
+          </div>
         </div>
         <div class="share-toast" id="share-toast">已复制到剪贴板！</div>
       </div>

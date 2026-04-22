@@ -406,6 +406,9 @@ async function shareResult() {
   const r = window.__kgtiResult;
   if (!r) return;
 
+  // 统一记录分享按钮点击（用于统计分享率）
+  StatsBackend.trackEvent('share_click', { personality: r.personality, method: 'share' });
+
   const text = buildShareText(r);
 
   if (navigator.share) {
@@ -430,6 +433,7 @@ async function copyShareText() {
   const r = window.__kgtiResult;
   if (!r) return;
 
+  StatsBackend.trackEvent('share_click', { personality: r.personality, method: 'copy' });
   StatsBackend.trackEvent('share_copy', { personality: r.personality });
   const text = buildShareText(r);
 
@@ -458,10 +462,19 @@ function saveImage() {
   const r = window.__kgtiResult;
   if (!r) return;
 
+  StatsBackend.trackEvent('share_click', { personality: r.personality, method: 'save_image' });
   StatsBackend.trackEvent('save_image', { personality: r.personality });
 
-  // 创建一个高分辨率 canvas 来合成结果图
-  const w = 600, h = 880;
+  // 预加载 QQ 群二维码图片，然后合成卡片
+  const qqQrImg = new Image();
+  qqQrImg.crossOrigin = 'anonymous';
+  qqQrImg.onload = () => _generateCard(r, qqQrImg);
+  qqQrImg.onerror = () => _generateCard(r, null);
+  qqQrImg.src = 'assets/QQGroupQRCode.png';
+}
+
+function _generateCard(r, qqQrImg) {
+  const w = 600, h = 960;  // 增加高度容纳 QQ 群二维码
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -502,6 +515,7 @@ function saveImage() {
   // 人格类型
   ctx.font = 'bold 48px "Segoe UI", sans-serif';
   ctx.fillStyle = r.info.colors.primary;
+  ctx.textAlign = 'center';
   ctx.fillText(r.personality, w / 2, 310);
 
   ctx.font = '18px "Microsoft YaHei"';
@@ -519,11 +533,19 @@ function saveImage() {
     ctx.drawImage(radarCanvas, (w - 250) / 2, 420, 250, 250);
   }
 
-  // ---- 底部：左侧文字 + 右侧二维码 ----
-  const bottomY = h - 100;
-  const qrSize = 80;
+  // ---- 底部区域：网页二维码（左） + QQ 群二维码（右） ----
+  const bottomY = h - 170;
 
-  // 生成二维码
+  // 分隔线
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, bottomY - 10);
+  ctx.lineTo(w - 40, bottomY - 10);
+  ctx.stroke();
+
+  // — 左侧：网页链接二维码 —
+  const qrSize = 80;
   try {
     const qr = qrcode(0, 'M');
     qr.addData(window.location.href);
@@ -531,47 +553,107 @@ function saveImage() {
 
     const moduleCount = qr.getModuleCount();
     const cellSize = qrSize / moduleCount;
-    const qrX = w - qrSize - 40;
-    const qrY = bottomY - 10;
+    const qrX = 40;
+    const qrY = bottomY + 5;
 
     // 白色底
     ctx.fillStyle = '#ffffff';
     const pad = 4;
     ctx.fillRect(qrX - pad, qrY - pad, qrSize + pad * 2, qrSize + pad * 2);
 
-    // 绘制二维码模块
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (qr.isDark(row, col)) {
           ctx.fillStyle = '#0a0a12';
-          ctx.fillRect(
-            qrX + col * cellSize,
-            qrY + row * cellSize,
-            cellSize + 0.5,
-            cellSize + 0.5
-          );
+          ctx.fillRect(qrX + col * cellSize, qrY + row * cellSize, cellSize + 0.5, cellSize + 0.5);
         }
       }
     }
-  } catch (_) {
-    // 二维码生成失败时静默处理
-  }
 
-  // 左侧底部文字
-  ctx.textAlign = 'left';
+    // 网页二维码下方文字
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#666680';
+    ctx.font = '11px "Microsoft YaHei"';
+    ctx.fillText('扫码测测你是哪种 Kiger', 40, bottomY + qrSize + 24);
+  } catch (_) {}
+
+  // — 中间文字 —
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#8888aa';
   ctx.font = '13px "Microsoft YaHei"';
-  ctx.fillText('头壳之下，灵魂几何？', 40, bottomY + 10);
+  ctx.fillText('头壳之下，灵魂几何？', w / 2, bottomY + 30);
   ctx.font = '11px "Microsoft YaHei"';
   ctx.fillStyle = '#666680';
-  ctx.fillText('扫码或长按识别二维码来测测', 40, bottomY + 30);
-  ctx.fillText('你是哪种 Kiger ↗', 40, bottomY + 48);
+  ctx.fillText('KGTI · Kigurumi人格测试', w / 2, bottomY + 50);
+
+  // — 右侧：QQ 群二维码（去白底透明融合）—
+  if (qqQrImg) {
+    const qqSize = 80;
+    const qqX = w - qqSize - 40;
+    const qqY = bottomY + 5;
+
+    // 用临时 canvas 去除白色背景
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = qqQrImg.naturalWidth;
+    tmpCanvas.height = qqQrImg.naturalHeight;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.drawImage(qqQrImg, 0, 0);
+
+    const imgData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const pr = data[i], pg = data[i + 1], pb = data[i + 2];
+      // 将白色/接近白色像素变透明，暗色像素变成浅色以融入暗色背景
+      const brightness = (pr + pg + pb) / 3;
+      if (brightness > 220) {
+        // 白色区域变为完全透明
+        data[i + 3] = 0;
+      } else {
+        // 暗色区域（二维码本身）变为浅灰色以在暗色背景上可见
+        data[i] = 200;     // R
+        data[i + 1] = 200; // G
+        data[i + 2] = 220; // B
+        data[i + 3] = Math.min(255, (255 - brightness) * 1.5);
+      }
+    }
+    tmpCtx.putImageData(imgData, 0, 0);
+
+    // 绘制半透明圆角背景框
+    const bgPad = 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    _roundRect(ctx, qqX - bgPad, qqY - bgPad, qqSize + bgPad * 2, qqSize + bgPad * 2, 8);
+    ctx.fill();
+
+    // 绘制处理后的二维码
+    ctx.drawImage(tmpCanvas, qqX, qqY, qqSize, qqSize);
+
+    // QQ 群二维码下方文字
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#666680';
+    ctx.font = '11px "Microsoft YaHei"';
+    ctx.fillText('扫码加入 KGTI 交流群', w - 40, bottomY + qqSize + 24);
+  }
 
   // 下载
   const link = document.createElement('a');
   link.download = `KGTI_${r.personality}_${r.info.name}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
+}
+
+// 绘制圆角矩形辅助函数
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -591,10 +673,46 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   ctx.fillText(line, x, ly);
 }
 
+// ---- QQ 群二维码弹窗 ----
+function toggleQQGroupModal() {
+  const modal = document.getElementById('qq-group-modal');
+  if (!modal) return;
+  const isShow = modal.classList.contains('show');
+  if (isShow) {
+    modal.classList.remove('show');
+  } else {
+    modal.classList.add('show');
+    StatsBackend.trackEvent('qq_group_view', { source: 'result_page' });
+  }
+}
+
+function closeQQGroupModal(event, force) {
+  const modal = document.getElementById('qq-group-modal');
+  if (!modal) return;
+  // 点击遮罩层关闭，或点击关闭按钮强制关闭
+  if (force || event.target === modal) {
+    modal.classList.remove('show');
+  }
+}
+
 // ---- 重新测试 ----
 function restartTest() {
   StatsBackend.trackEvent('retest');
   showPage('page-start');
+}
+
+// ---- 查看上次结果（缓存恢复） ----
+function viewLastResult() {
+  const restored = showCachedResultIfAny();
+  if (restored) {
+    StatsBackend.trackEvent('view_cached_result');
+    // 加载同型占比
+    const r = window.__kgtiResult;
+    if (r) {
+      setMatchStatLoading(r.personality);
+      fetchMatchStat(r.personality);
+    }
+  }
 }
 
 function showDebugResultByType(type) {
@@ -666,6 +784,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   fetchTestCount();
   setupDebugEntry();
   setupDebugHotkeys();
+
+  // 如果有上次结果缓存，在开始页显示"查看上次结果"按钮
+  try {
+    const cached = localStorage.getItem(LAST_RESULT_KEY);
+    if (cached) {
+      const data = JSON.parse(cached);
+      if (data && PERSONALITY_INFO[data.personality]) {
+        const btnWrap = document.getElementById('cached-result-wrap');
+        if (btnWrap) btnWrap.style.display = 'block';
+      }
+    }
+  } catch (_) {}
 
   // 页面关闭/刷新时上报结果页停留时长
   window.addEventListener('beforeunload', () => {
