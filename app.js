@@ -6,12 +6,19 @@ let currentQuestions = [];
 let currentIndex = 0;
 let answers = [];
 let hasCountedCurrentRun = false;
+const LAST_RESULT_KEY = 'kgti:lastResult';
 
-// 将此地址替换为你部署好的 Google Apps Script Web App URL。
-// GET: 返回 { count: number }
-// POST: 返回 { count: number }，并在表内 +1
-const STATS_API_URL = '';
-const FALLBACK_TEST_COUNT = 9038;
+// ---- 维格表 (Vika) 数据收集配置 ----
+// 凭据已做混淆处理，运行时自动解码（详见 README-统计后端部署.md）
+const _d = (s) => atob(s.split('').map(c => String.fromCharCode(c.charCodeAt(0) - 3)).join(''));
+const VIKA_CONFIG = {
+  token: _d('g[QuV4o[ZJ{rY4oQZnMKX[EKWp34YX3@'),
+  datasheetId: _d(']KQ3f4ooeZf{]Yk9dJgXX4MW')
+};
+const FALLBACK_TEST_COUNT = 0;
+
+// 是否已成功初始化后端
+let _statsReady = false;
 
 // ---- 工具函数 ----
 function hexToRGBA(hex, alpha) {
@@ -22,7 +29,7 @@ function hexToRGBA(hex, alpha) {
 }
 
 // ---- 雷达图绘制 ----
-function drawRadarChart(canvasId, scores, colors) {
+function drawRadarChart(canvasId, scores, colors, labels = MODEL_NAMES) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -30,8 +37,7 @@ function drawRadarChart(canvasId, scores, colors) {
   const h = canvas.height;
   const cx = w / 2;
   const cy = h / 2;
-  const maxR = Math.min(cx, cy) - 56;
-  const labels = ['生存力', '表现力', '社交力', '经济力'];
+  const maxR = Math.min(cx, cy) - 60;
   const n = labels.length;
 
   ctx.clearRect(0, 0, w, h);
@@ -174,6 +180,8 @@ function renderQuestion() {
 }
 
 // ---- 选择选项 ----
+let _autoNextTimer = null;
+
 function selectOption(idx) {
   const q = currentQuestions[currentIndex];
 
@@ -191,6 +199,13 @@ function selectOption(idx) {
   });
 
   updateNavButtons(q.id, currentQuestions.length);
+
+  // 选择后自动跳转下一题（短暂延迟让用户看到选中效果）
+  if (_autoNextTimer) clearTimeout(_autoNextTimer);
+  _autoNextTimer = setTimeout(() => {
+    _autoNextTimer = null;
+    nextQuestion();
+  }, 350);
 }
 
 // ---- 上一题 ----
@@ -259,18 +274,14 @@ function submitTest() {
   }, 80);
 }
 
-// ---- 显示结果 ----
-function showResult() {
-  const rawScores = calculateRawScores(answers, currentQuestions);
-  const levels = scoresToLevels(rawScores);
-  const personality = matchPersonality(levels);
-  const modelScores = calcModelScores(rawScores);
+function renderResultView(personality, levels, modelScores) {
   const info = PERSONALITY_INFO[personality];
+  if (!info) return;
 
   // 类型标题
   document.getElementById('result-type').textContent = personality;
   document.getElementById('result-name').textContent =
-    `${info.emoji} ${info.name}（${info.category}）`;
+    `${info.emoji} ${info.name}`;
 
   // 宣言
   document.getElementById('result-quote').textContent = info.quote;
@@ -278,30 +289,11 @@ function showResult() {
   // 描述
   document.getElementById('result-desc').textContent = info.desc;
 
-  // 徽章
-  const badge = document.getElementById('result-badge');
-  badge.textContent = info.category;
-  badge.style.background = hexToRGBA(info.badgeColor, 0.2);
-  badge.style.color = info.badgeColor;
-  badge.style.border = `1px solid ${hexToRGBA(info.badgeColor, 0.4)}`;
-
   // 设置头像图片
   document.getElementById('result-avatar').src = `assets/${personality}.png`;
 
   // 雷达图
-  drawRadarChart('radar-canvas', modelScores, info.colors);
-
-  // 维度标签
-  const tagsEl = document.getElementById('dimension-tags');
-  tagsEl.innerHTML = '';
-  DIM_NAMES.forEach((name, i) => {
-    const levelLabel = ['低', '中', '高'][levels[i]];
-    const levelClass = levels[i] === 2 ? 'high' : levels[i] === 0 ? 'low' : '';
-    const tag = document.createElement('span');
-    tag.className = `dim-tag ${levelClass}`;
-    tag.textContent = `${name}: ${levelLabel}`;
-    tagsEl.appendChild(tag);
-  });
+  drawRadarChart('radar-canvas', modelScores, info.colors, MODEL_NAMES);
 
   // 结果卡片背景色微调
   const card = document.getElementById('result-card');
@@ -316,10 +308,72 @@ function showResult() {
     modelScores,
     levels
   };
+}
+
+// ---- 显示结果 ----
+function showResult() {
+  const rawScores = calculateRawScores(answers, currentQuestions);
+  const levels = scoresToLevels(rawScores);
+  const personality = matchPersonality(levels);
+  const modelScores = calcModelScores(rawScores, answers, currentQuestions);
+
+  renderResultView(personality, levels, modelScores);
+
+  // 加载同型占比
+  setMatchStatLoading(personality);
+  fetchMatchStat(personality);
+
+  // 缓存上次结果，便于调试时直达结果页
+  localStorage.setItem(LAST_RESULT_KEY, JSON.stringify({
+    personality,
+    modelScores,
+    levels
+  }));
 
   if (!hasCountedCurrentRun) {
     hasCountedCurrentRun = true;
-    incrementTestCount();
+    submitTestResult(personality, modelScores, levels);
+  }
+}
+
+// ---- 同型占比 ----
+function setMatchStatLoading(personality) {
+  const el = document.getElementById('match-stat');
+  if (!el) return;
+  el.textContent = `正在读取与你同为 ${personality} 的占比数据...`;
+}
+
+function setMatchStatText(text) {
+  const el = document.getElementById('match-stat');
+  if (!el) return;
+  el.textContent = text;
+}
+
+async function fetchMatchStat(personality) {
+  if (!_statsReady) {
+    setMatchStatText('');
+    return;
+  }
+
+  try {
+    const data = await StatsBackend.getMatchStat(personality);
+
+    if (!data || data.percent === undefined) {
+      setMatchStatText('暂时无法获取同型占比，请稍后重试。');
+      return;
+    }
+
+    if (data.empty) {
+      // 维格表刚建好还没有数据，显示友好提示
+      setMatchStatText('你是第一位完成测试的 Kiger，快邀请朋友一起来测吧！');
+      return;
+    }
+
+    const info = PERSONALITY_INFO[personality];
+    const typeName = info ? info.name : personality;
+    setMatchStatText(`当前共有 ${data.percent}% 的 Kiger 与你同为 ${personality}（${typeName}）人格`);
+  } catch (_) {
+    setMatchStatText('暂时无法连接统计服务。');
   }
 }
 
@@ -328,9 +382,10 @@ function buildShareText(r) {
     `🎭 我的KGTI测试结果是：【${r.personality}】${r.info.name}！`,
     `${r.info.quote}`,
     '',
-    `📊 四维属性：`,
+    `📊 五维属性：`,
     `  生存力 ${r.modelScores[0]} | 表现力 ${r.modelScores[1]}`,
     `  社交力 ${r.modelScores[2]} | 经济力 ${r.modelScores[3]}`,
+    `  认同心态 ${r.modelScores[4]}`,
     '',
     `🔗 来测测你是哪种Kiger → ${window.location.href}`,
     `#KGTI #Kigurumi人格测试`
@@ -393,7 +448,7 @@ function saveImage() {
   if (!r) return;
 
   // 创建一个高分辨率 canvas 来合成结果图
-  const w = 600, h = 800;
+  const w = 600, h = 880;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -419,7 +474,16 @@ function saveImage() {
   // 头像
   const avatarImg = document.getElementById('result-avatar');
   if (avatarImg && avatarImg.complete) {
-    ctx.drawImage(avatarImg, (w - 200) / 2, 60, 200, 200);
+    const boxX = (w - 220) / 2;
+    const boxY = 60;
+    const boxW = 220;
+    const boxH = 220;
+    const scale = Math.min(boxW / avatarImg.naturalWidth, boxH / avatarImg.naturalHeight);
+    const drawW = avatarImg.naturalWidth * scale;
+    const drawH = avatarImg.naturalHeight * scale;
+    const dx = boxX + (boxW - drawW) / 2;
+    const dy = boxY + (boxH - drawH) / 2;
+    ctx.drawImage(avatarImg, dx, dy, drawW, drawH);
   }
 
   // 人格类型
@@ -442,18 +506,53 @@ function saveImage() {
     ctx.drawImage(radarCanvas, (w - 250) / 2, 420, 250, 250);
   }
 
-  // 底部
-  ctx.fillStyle = '#8888aa';
-  ctx.font = '12px "Microsoft YaHei"';
-  ctx.fillText('面具之下，灵魂几何？', w / 2, h - 40);
-  ctx.fillText(window.location.href, w / 2, h - 20);
+  // ---- 底部：左侧文字 + 右侧二维码 ----
+  const bottomY = h - 100;
+  const qrSize = 80;
 
-  // 右下角作者署名
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#9aa0b5';
-  ctx.font = '12px "Microsoft YaHei"';
-  ctx.fillText('@YuiLu_', w - 16, h - 16);
-  ctx.textAlign = 'center';
+  // 生成二维码
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(window.location.href);
+    qr.make();
+
+    const moduleCount = qr.getModuleCount();
+    const cellSize = qrSize / moduleCount;
+    const qrX = w - qrSize - 40;
+    const qrY = bottomY - 10;
+
+    // 白色底
+    ctx.fillStyle = '#ffffff';
+    const pad = 4;
+    ctx.fillRect(qrX - pad, qrY - pad, qrSize + pad * 2, qrSize + pad * 2);
+
+    // 绘制二维码模块
+    for (let row = 0; row < moduleCount; row++) {
+      for (let col = 0; col < moduleCount; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillStyle = '#0a0a12';
+          ctx.fillRect(
+            qrX + col * cellSize,
+            qrY + row * cellSize,
+            cellSize + 0.5,
+            cellSize + 0.5
+          );
+        }
+      }
+    }
+  } catch (_) {
+    // 二维码生成失败时静默处理
+  }
+
+  // 左侧底部文字
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#8888aa';
+  ctx.font = '13px "Microsoft YaHei"';
+  ctx.fillText('头壳之下，灵魂几何？', 40, bottomY + 10);
+  ctx.font = '11px "Microsoft YaHei"';
+  ctx.fillStyle = '#666680';
+  ctx.fillText('扫码或长按识别二维码来测测', 40, bottomY + 30);
+  ctx.fillText('你是哪种 Kiger ↗', 40, bottomY + 48);
 
   // 下载
   const link = document.createElement('a');
@@ -484,9 +583,75 @@ function restartTest() {
   showPage('page-start');
 }
 
+function showDebugResultByType(type) {
+  const personality = PERSONALITY_INFO[type] ? type : 'SOUL';
+  const rawScores = PERSONALITY_VECTORS[personality]
+    ? [...PERSONALITY_VECTORS[personality]]
+    : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+  const levels = scoresToLevels(rawScores);
+  const modelScores = calcModelScores(rawScores);
+  renderResultView(personality, levels, modelScores);
+}
+
+function showCachedResultIfAny() {
+  try {
+    const raw = localStorage.getItem(LAST_RESULT_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !PERSONALITY_INFO[data.personality]) return false;
+    if (!Array.isArray(data.levels) || !Array.isArray(data.modelScores)) return false;
+    renderResultView(data.personality, data.levels, data.modelScores);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function setupDebugEntry() {
+  const params = new URLSearchParams(window.location.search);
+  const debugMode = params.get('debug');
+  const type = (params.get('type') || '').toUpperCase();
+
+  // 用法：
+  // ?debug=result           -> 展示上次缓存结果，没有缓存则 SOUL
+  // ?debug=result&type=ROBO -> 直接展示指定人格
+  if (debugMode === 'result') {
+    if (type) {
+      showDebugResultByType(type);
+      return;
+    }
+    if (!showCachedResultIfAny()) {
+      showDebugResultByType('SOUL');
+    }
+  }
+}
+
+function setupDebugHotkeys() {
+  document.addEventListener('keydown', (e) => {
+    // Shift + R: 快速进入上次结果页
+    if (e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+      if (!showCachedResultIfAny()) {
+        showDebugResultByType('SOUL');
+      }
+    }
+  });
+}
+
 // ---- 初始化 ----
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // 初始化维格表数据收集
+  try {
+    if (VIKA_CONFIG.token && VIKA_CONFIG.datasheetId) {
+      _statsReady = StatsBackend.init(VIKA_CONFIG);
+    }
+  } catch (e) {
+    // 静默失败，不影响主流程
+  }
+
+  // 获取并展示测试人数（优先从维格表读取，失败则用兜底值）
   fetchTestCount();
+  setupDebugEntry();
+  setupDebugHotkeys();
 });
 
 function setTestCountDisplay(count) {
@@ -498,35 +663,36 @@ function setTestCountDisplay(count) {
   el.textContent = safeCount.toLocaleString();
 }
 
+// ---- 获取并展示测试人数 ----
 async function fetchTestCount() {
-  if (!STATS_API_URL) {
+  if (!_statsReady) {
     setTestCountDisplay(FALLBACK_TEST_COUNT);
     return;
   }
 
   try {
-    const res = await fetch(STATS_API_URL, { method: 'GET' });
-    const data = await res.json();
-    setTestCountDisplay(Number(data.count));
+    const count = await StatsBackend.getTestCount();
+    setTestCountDisplay(count !== null ? (FALLBACK_TEST_COUNT + count) : FALLBACK_TEST_COUNT);
   } catch (_) {
     setTestCountDisplay(FALLBACK_TEST_COUNT);
   }
 }
 
-async function incrementTestCount() {
-  if (!STATS_API_URL) return;
+/**
+ * 提交测试结果到维格表（静默收集，不影响主流程）
+ */
+async function submitTestResult(personality, modelScores, levels) {
+  if (!_statsReady) return;
 
   try {
-    const res = await fetch(STATS_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'increment' })
+    await StatsBackend.submitResult({
+      personality,
+      modelScores,
+      levels
     });
-    const data = await res.json();
-    if (typeof data.count !== 'undefined') {
-      setTestCountDisplay(Number(data.count));
-    }
+    // 提交成功后刷新首页计数
+    fetchTestCount();
   } catch (_) {
-    // 统计上报失败不影响主流程
+    // 数据收集失败不影响主流程
   }
 }

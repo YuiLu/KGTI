@@ -1,5 +1,5 @@
 /**
- * KGTI 完整题库 —— 25道题，每次随机抽取15道
+ * KGTI 完整题库 —— 24道题，每次随机抽取15道
  *
  * 每道题有 group（组别）和 scoring 数组。
  * scoring 里每个条目描述选项对哪个维度产生多少分。
@@ -31,16 +31,6 @@ const FULL_QUESTIONS = [
       { label: 'A', text: '提前8小时断水断食，我没有这种世俗的欲望', scores: { 2: 2, 0: 1 } },
       { label: 'B', text: '告知后勤找个残厕', scores: { 2: 1, 8: 1 } },
       { label: 'C', text: '难道这也是play的一环？', scores: { 5: 2, 6: 1 } }
-    ]
-  },
-  {
-    id: 'g1q3',
-    group: 1,
-    text: '如何看待娃圈大佬制作的便利工具（OpenDoll捏脸、KigMap娃圈地图、KigTTS变声器）？',
-    options: [
-      { label: 'A', text: '听说过，正在使用/愿意尝试', scores: { 1: 2, 8: 1 } },
-      { label: 'B', text: '听说过，但懒得折腾', scores: { 1: 0 } },
-      { label: 'C', text: '完全没听说过', scores: { 1: 0, 8: 0 } }
     ]
   },
   {
@@ -113,7 +103,7 @@ const FULL_QUESTIONS = [
     text: '公园外拍，路人小孩戳你大腿问："妈妈，这是真人还是机器人？"，你：',
     options: [
       { label: 'A', text: '打招呼简单互动', scores: { 6: 1, 8: 1 } },
-      { label: 'B', text: '假装自己真的是机器人', scores: { 6: 2, 4: 1 } },
+      { label: 'B', text: '是机器人，不透气，看不见', scores: { 6: 2, 4: 1 } },
       { label: 'C', text: '你才人机 😤', scores: { 7: 1, 6: 2 } }
     ]
   },
@@ -143,7 +133,7 @@ const FULL_QUESTIONS = [
     text: '网上遇到不认识的圈外人私信问奇怪的问题或发骚扰信息…',
     options: [
       { label: 'A', text: '觉得被冒犯，直接拉黑', scores: { 7: 0 } },
-      { label: 'B', text: '问候对方父母/激情对线', scores: { 7: 1, 6: 1 } },
+      { label: 'B', text: '礼貌问候，激情对线', scores: { 7: 1, 6: 1 } },
       { label: 'C', text: '截图挂人/装片哥反向骚扰整活', scores: { 7: 2, 6: 2 } }
     ]
   },
@@ -164,8 +154,8 @@ const FULL_QUESTIONS = [
     group: 4,
     text: '你现在有几个头壳？',
     options: [
-      { label: 'A', text: '就一个，刚入坑/单推人/省吃俭用买的', scores: { 11: 0 } },
-      { label: 'B', text: '2-5个，换着玩', scores: { 11: 1 } },
+      { label: 'A', text: '就一个, 刚入坑/单推人/省吃俭用买的', scores: { 11: 0 } },
+      { label: 'B', text: '2-5个, 换着玩', scores: { 11: 1 } },
       { label: 'C', text: '十头以上多头大佬/我就是搓头的', scores: { 11: 2, 10: 1 } }
     ]
   },
@@ -218,7 +208,7 @@ const FULL_QUESTIONS = [
     options: [
       { label: 'A', text: '绝对的社死禁忌！宁愿中暑也绝不当众摘头！', scores: { 6: 0, 2: 2 } },
       { label: 'B', text: '找个绝对没人的残卫或帐篷，偷偷掀起一点点呼吸', scores: { 6: 1, 2: 1 } },
-      { label: 'C', text: '实在受不了就摘了呗（你将被开除Kig籍）', scores: { 6: 2, 2: 0 } }
+      { label: 'C', text: '实在受不了就摘了呗', scores: { 6: 2, 2: 0 } }
     ]
   },
   {
@@ -248,7 +238,7 @@ const FULL_QUESTIONS = [
     options: [
       { label: 'A', text: '挂闲鱼回血', scores: { 11: 0 } },
       { label: 'B', text: '当传家宝供起来留给儿子孙子', scores: { 9: 1, 10: 1 } },
-      { label: 'C', text: '带进棺材里/物理销毁', scores: { 9: 2, 5: 1 } }
+      { label: 'C', text: '物理销毁', scores: { 9: 2, 5: 1 } }
     ]
   },
   {
@@ -256,7 +246,7 @@ const FULL_QUESTIONS = [
     group: 5,
     text: '店家忘给你开眼窗了',
     options: [
-      { label: 'A', text: '这是B？', scores: { 1: 0, 2: 1 } },
+      { label: 'A', text: '这是B ?', scores: { 1: 0, 2: 1 } },
       { label: 'B', text: '摸起来有点像C', scores: { 1: 0, 6: 1 } },
       { label: 'C', text: '啥也看不见啊', scores: { 2: 0 } }
     ]

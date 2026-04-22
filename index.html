@@ -19,7 +19,7 @@
         </div>
         <h1 class="title glitch" data-text="KGTI">KGTI</h1>
         <p class="subtitle">Kigurumi Type Indicator</p>
-        <p class="desc">面具之下，灵魂几何？<br>一款纯娱乐性质的Kig圈自嘲式"人格"测试</p>
+        <p class="desc">头壳之下，灵魂几何？<br>一款纯娱乐性质的Kig圈自嘲式"人格"测试</p>
         <div class="disclaimer">⚠️ 本测试无任何科学依据，纯属整活</div>
         <button id="btn-start" class="btn-primary" onclick="startTest()">
           <span>戴 上 面 具 开 始 测 试</span>
@@ -62,8 +62,7 @@
     <section id="page-result" class="page">
       <div class="result-container">
         <div class="result-card" id="result-card">
-          <div class="result-badge" id="result-badge"></div>
-          <img id="result-avatar" width="280" height="280" alt="Avatar">
+          <img id="result-avatar" alt="Avatar">
           <h2 class="result-type" id="result-type"></h2>
           <p class="result-name" id="result-name"></p>
           <p class="result-quote" id="result-quote"></p>
@@ -71,7 +70,7 @@
           <div class="radar-chart-area">
             <canvas id="radar-canvas" width="300" height="300"></canvas>
           </div>
-          <div class="dimension-tags" id="dimension-tags"></div>
+          <p class="match-stat" id="match-stat"></p>
         </div>
         <div class="result-actions">
           <button class="btn-primary" onclick="shareResult()">🔗 分享结果</button>
@@ -79,33 +78,23 @@
           <button class="btn-secondary" onclick="saveImage()">💾 保存结果图片</button>
           <button class="btn-secondary" onclick="restartTest()">🔄 重新测试</button>
         </div>
-        <div class="creator-card">
-          <img src="assets/avatar.jpeg" alt="Yui Lu" class="creator-avatar" width="56" height="56">
-          <div class="creator-text">
-            <p class="creator-name">作者：Yui Lu</p>
-            <div class="creator-links">
-              <a class="creator-link" href="https://b23.tv/Kw1Z4fN" target="_blank" rel="noopener noreferrer" aria-label="B站 Yui_06" title="B站 Yui_06">
-                <img src="assets/icon-bilibili.svg" alt="Bilibili" width="16" height="16">
-              </a>
-              <a class="creator-link" href="https://b23.tv/Ss4aFjy" target="_blank" rel="noopener noreferrer" aria-label="B站 YuiLu_" title="B站 YuiLu_">
-                <img src="assets/icon-bilibili.svg" alt="Bilibili" width="16" height="16">
-              </a>
-              <a class="creator-link" href="https://xhslink.com/m/6cv0fMPO6oI" target="_blank" rel="noopener noreferrer" aria-label="小红书 Yui" title="小红书 Yui">
-                <img src="assets/icon-xhs.svg" alt="Xiaohongshu" width="16" height="16">
-              </a>
-              <a class="creator-link" href="https://v.douyin.com/dC2XB-zRZbU/" target="_blank" rel="noopener noreferrer" aria-label="抖音 Yui" title="抖音 Yui">
-                <img src="assets/icon-douyin.svg" alt="Douyin" width="16" height="16">
-              </a>
-            </div>
-          </div>
+        <div class="creator-inline">
+          <img src="assets/avatar.jpeg" alt="Yui Lu" class="creator-avatar-sm">
+          <span class="creator-label">by Yui Lu</span>
+          <a class="creator-icon is-bilibili" href="https://b23.tv/Kw1Z4fN" target="_blank" rel="noopener noreferrer" title="B站 Yui_06"><img src="assets/icon-bilibili.svg" alt="B" width="14" height="14"></a>
+          <a class="creator-icon is-bilibili" href="https://b23.tv/Ss4aFjy" target="_blank" rel="noopener noreferrer" title="B站 YuiLu_"><img src="assets/icon-bilibili.svg" alt="B" width="14" height="14"></a>
+          <a class="creator-icon is-xhs" href="https://xhslink.com/m/6cv0fMPO6oI" target="_blank" rel="noopener noreferrer" title="小红书 Yui"><img src="assets/icon-xhs.svg" alt="XHS" width="14" height="14"></a>
+          <a class="creator-icon is-douyin" href="https://v.douyin.com/dC2XB-zRZbU/" target="_blank" rel="noopener noreferrer" title="抖音 Yui"><img src="assets/icon-douyin.svg" alt="DY" width="14" height="14"></a>
         </div>
         <div class="share-toast" id="share-toast">已复制到剪贴板！</div>
       </div>
     </section>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/2.0.4/qrcode.min.js"></script>
   <script src="questions.js"></script>
   <script src="scoring.js"></script>
+  <script src="stats-backend.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
