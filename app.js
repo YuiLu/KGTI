@@ -533,19 +533,49 @@ function _generateCard(r, qqQrImg) {
     ctx.drawImage(radarCanvas, (w - 250) / 2, 420, 250, 250);
   }
 
-  // ---- 底部区域：网页二维码（左） + QQ 群二维码（右） ----
-  const bottomY = h - 170;
+  // ---- 底部区域：文字 + 两个二维码并排居中 ----
+  const qrSize = 80;
+  const qrGap = 40;         // 两个码之间的间距
+  const qrPad = 4;          // 白底 padding
+  const totalQrW = qrSize * 2 + qrGap;
+  const qrStartX = (w - totalQrW) / 2;  // 居中起始 X
+
+  // 底部文字
+  const textY = h - 190;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8888aa';
+  ctx.font = '13px "Microsoft YaHei"';
+  ctx.fillText('头壳之下，灵魂几何？', w / 2, textY);
+  ctx.font = '11px "Microsoft YaHei"';
+  ctx.fillStyle = '#666680';
+  ctx.fillText('KGTI · Kigurumi人格测试', w / 2, textY + 20);
 
   // 分隔线
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(40, bottomY - 10);
-  ctx.lineTo(w - 40, bottomY - 10);
+  ctx.moveTo(40, textY + 34);
+  ctx.lineTo(w - 40, textY + 34);
   ctx.stroke();
 
-  // — 左侧：网页链接二维码 —
-  const qrSize = 80;
+  const qrY = textY + 48;
+
+  // 辅助：绘制圆角矩形
+  function _roundRect(c, x, y, w2, h2, radius) {
+    c.beginPath();
+    c.moveTo(x + radius, y);
+    c.lineTo(x + w2 - radius, y);
+    c.quadraticCurveTo(x + w2, y, x + w2, y + radius);
+    c.lineTo(x + w2, y + h2 - radius);
+    c.quadraticCurveTo(x + w2, y + h2, x + w2 - radius, y + h2);
+    c.lineTo(x + radius, y + h2);
+    c.quadraticCurveTo(x, y + h2, x, y + h2 - radius);
+    c.lineTo(x, y + radius);
+    c.quadraticCurveTo(x, y, x + radius, y);
+    c.closePath();
+  }
+
+  // — 左码：网页链接二维码（白色圆角底 + 黑色模块）—
   try {
     const qr = qrcode(0, 'M');
     qr.addData(window.location.href);
@@ -553,85 +583,47 @@ function _generateCard(r, qqQrImg) {
 
     const moduleCount = qr.getModuleCount();
     const cellSize = qrSize / moduleCount;
-    const qrX = 40;
-    const qrY = bottomY + 5;
+    const qr1X = qrStartX;
 
-    // 白色底
+    // 白色圆角背景
     ctx.fillStyle = '#ffffff';
-    const pad = 4;
-    ctx.fillRect(qrX - pad, qrY - pad, qrSize + pad * 2, qrSize + pad * 2);
+    _roundRect(ctx, qr1X - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrSize + qrPad * 2, 6);
+    ctx.fill();
 
+    // 绘制 QR 模块（黑色）
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (qr.isDark(row, col)) {
-          ctx.fillStyle = '#0a0a12';
-          ctx.fillRect(qrX + col * cellSize, qrY + row * cellSize, cellSize + 0.5, cellSize + 0.5);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(qr1X + col * cellSize, qrY + row * cellSize, cellSize + 0.5, cellSize + 0.5);
         }
       }
     }
 
-    // 网页二维码下方文字
-    ctx.textAlign = 'left';
+    // 网页码下方文字
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#666680';
     ctx.font = '11px "Microsoft YaHei"';
-    ctx.fillText('扫码测测你是哪种 Kiger', 40, bottomY + qrSize + 24);
+    ctx.fillText('扫码测测你是哪种Kiger', qr1X + qrSize / 2, qrY + qrSize + 18);
   } catch (_) {}
 
-  // — 中间文字 —
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#8888aa';
-  ctx.font = '13px "Microsoft YaHei"';
-  ctx.fillText('头壳之下，灵魂几何？', w / 2, bottomY + 30);
-  ctx.font = '11px "Microsoft YaHei"';
-  ctx.fillStyle = '#666680';
-  ctx.fillText('KGTI · Kigurumi人格测试', w / 2, bottomY + 50);
-
-  // — 右侧：QQ 群二维码（去白底透明融合）—
+  // — 右码：QQ 群二维码（白色圆角底 + 原图直接绘制）—
   if (qqQrImg) {
-    const qqSize = 80;
-    const qqX = w - qqSize - 40;
-    const qqY = bottomY + 5;
+    const qr2X = qrStartX + qrSize + qrGap;
 
-    // 用临时 canvas 去除白色背景
-    const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width = qqQrImg.naturalWidth;
-    tmpCanvas.height = qqQrImg.naturalHeight;
-    const tmpCtx = tmpCanvas.getContext('2d');
-    tmpCtx.drawImage(qqQrImg, 0, 0);
-
-    const imgData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-    const data = imgData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const pr = data[i], pg = data[i + 1], pb = data[i + 2];
-      // 将白色/接近白色像素变透明，暗色像素变成浅色以融入暗色背景
-      const brightness = (pr + pg + pb) / 3;
-      if (brightness > 220) {
-        // 白色区域变为完全透明
-        data[i + 3] = 0;
-      } else {
-        // 暗色区域（二维码本身）变为浅灰色以在暗色背景上可见
-        data[i] = 200;     // R
-        data[i + 1] = 200; // G
-        data[i + 2] = 220; // B
-        data[i + 3] = Math.min(255, (255 - brightness) * 1.5);
-      }
-    }
-    tmpCtx.putImageData(imgData, 0, 0);
-
-    // 绘制半透明圆角背景框
-    const bgPad = 6;
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    _roundRect(ctx, qqX - bgPad, qqY - bgPad, qqSize + bgPad * 2, qqSize + bgPad * 2, 8);
+    // 白色圆角背景
+    ctx.fillStyle = '#ffffff';
+    _roundRect(ctx, qr2X - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrSize + qrPad * 2, 6);
     ctx.fill();
 
-    // 绘制处理后的二维码
-    ctx.drawImage(tmpCanvas, qqX, qqY, qqSize, qqSize);
+    // 直接绘制原始 QQ 群二维码（不做反色，保持可扫描性）
+    ctx.drawImage(qqQrImg, qr2X, qrY, qrSize, qrSize);
 
-    // QQ 群二维码下方文字
-    ctx.textAlign = 'right';
+    // QQ 码下方文字
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#666680';
     ctx.font = '11px "Microsoft YaHei"';
-    ctx.fillText('扫码加入 KGTI 交流群', w - 40, bottomY + qqSize + 24);
+    ctx.fillText('扫码加入KGTI交流群', qr2X + qrSize / 2, qrY + qrSize + 18);
   }
 
   // 下载
