@@ -8,12 +8,10 @@ let answers = [];
 let hasCountedCurrentRun = false;
 const LAST_RESULT_KEY = 'kgti:lastResult';
 
-// ---- 维格表 (Vika) 数据收集配置 ----
-// 凭据已做混淆处理，运行时自动解码（详见 README-统计后端部署.md）
-const _d = (s) => atob(s.split('').map(c => String.fromCharCode(c.charCodeAt(0) - 3)).join(''));
-const VIKA_CONFIG = {
-  token: _d('g[QuV4o[ZJ{rY4oQZnMKX[EKWp34YX3@'),
-  datasheetId: _d(']KQ3f4ooeZf{]Yk9dJgXX4MW')
+// ---- Supabase 数据收集配置 ----
+const SUPABASE_CONFIG = {
+  supabaseUrl: 'https://hiuhfieznrvuquxkooao.supabase.co',
+  supabaseKey: 'sb_publishable_C2LxRpiSRyeEZrhu7HKkfQ_YvesOoH2'
 };
 const FALLBACK_TEST_COUNT = 0;
 
@@ -117,6 +115,13 @@ function drawRadarChart(canvasId, scores, colors, labels = MODEL_NAMES) {
 
 // ---- 页面管理 ----
 function showPage(pageId) {
+  // 如果正在离开结果页，上报停留时长
+  if (window.__resultPageEnterTime && pageId !== 'page-result') {
+    const staySeconds = Math.round((Date.now() - window.__resultPageEnterTime) / 1000);
+    StatsBackend.trackEvent('result_stay', { seconds: staySeconds });
+    window.__resultPageEnterTime = null;
+  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById(pageId);
   if (page) {
@@ -134,6 +139,7 @@ function startTest() {
   currentIndex = 0;
   answers = [];
   hasCountedCurrentRun = false;
+  StatsBackend.trackEvent('test_start');
   showPage('page-quiz');
   renderQuestion();
 }
@@ -319,6 +325,9 @@ function showResult() {
 
   renderResultView(personality, levels, modelScores);
 
+  // 记录进入结果页的时间，用于计算停留时长
+  window.__resultPageEnterTime = Date.now();
+
   // 加载同型占比
   setMatchStatLoading(personality);
   fetchMatchStat(personality);
@@ -401,6 +410,7 @@ async function shareResult() {
 
   if (navigator.share) {
     try {
+      StatsBackend.trackEvent('share_native', { personality: r.personality });
       await navigator.share({
         title: `我的KGTI结果：${r.personality}`,
         text,
@@ -420,6 +430,7 @@ async function copyShareText() {
   const r = window.__kgtiResult;
   if (!r) return;
 
+  StatsBackend.trackEvent('share_copy', { personality: r.personality });
   const text = buildShareText(r);
 
   navigator.clipboard.writeText(text).then(() => {
@@ -446,6 +457,8 @@ async function copyShareText() {
 function saveImage() {
   const r = window.__kgtiResult;
   if (!r) return;
+
+  StatsBackend.trackEvent('save_image', { personality: r.personality });
 
   // 创建一个高分辨率 canvas 来合成结果图
   const w = 600, h = 880;
@@ -580,6 +593,7 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 
 // ---- 重新测试 ----
 function restartTest() {
+  StatsBackend.trackEvent('retest');
   showPage('page-start');
 }
 
@@ -639,19 +653,50 @@ function setupDebugHotkeys() {
 
 // ---- 初始化 ----
 document.addEventListener('DOMContentLoaded', async () => {
-  // 初始化维格表数据收集
+  // 初始化 Supabase 数据收集
   try {
-    if (VIKA_CONFIG.token && VIKA_CONFIG.datasheetId) {
-      _statsReady = StatsBackend.init(VIKA_CONFIG);
+    if (SUPABASE_CONFIG.supabaseUrl && SUPABASE_CONFIG.supabaseKey) {
+      _statsReady = StatsBackend.init(SUPABASE_CONFIG);
     }
   } catch (e) {
     // 静默失败，不影响主流程
   }
 
-  // 获取并展示测试人数（优先从维格表读取，失败则用兜底值）
+  // 获取并展示测试人数
   fetchTestCount();
   setupDebugEntry();
   setupDebugHotkeys();
+
+  // 页面关闭/刷新时上报结果页停留时长
+  window.addEventListener('beforeunload', () => {
+    if (window.__resultPageEnterTime) {
+      const staySeconds = Math.round((Date.now() - window.__resultPageEnterTime) / 1000);
+      // 使用 fetch + keepalive 确保页面关闭时也能发出请求
+      // （sendBeacon 不支持自定义 header，而 Supabase REST API 需要 Authorization）
+      const payload = JSON.stringify({
+        session_id: StatsBackend.getSessionId(),
+        event_type: 'result_stay',
+        event_data: { seconds: staySeconds },
+        env: StatsBackend.getEnv()
+      });
+      const url = SUPABASE_CONFIG.supabaseUrl + '/rest/v1/user_events';
+      try {
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_CONFIG.supabaseKey,
+            'Authorization': 'Bearer ' + SUPABASE_CONFIG.supabaseKey,
+            'Prefer': 'return=minimal'
+          },
+          body: payload,
+          keepalive: true  // 关键：允许页面关闭后请求继续
+        });
+      } catch (_) {
+        // 静默失败
+      }
+    }
+  });
 });
 
 function setTestCountDisplay(count) {
@@ -665,15 +710,19 @@ function setTestCountDisplay(count) {
 
 // ---- 获取并展示测试人数 ----
 async function fetchTestCount() {
+  console.log('[KGTI] fetchTestCount called, _statsReady =', _statsReady);
   if (!_statsReady) {
+    console.warn('[KGTI] StatsBackend 未就绪，显示 fallback:', FALLBACK_TEST_COUNT);
     setTestCountDisplay(FALLBACK_TEST_COUNT);
     return;
   }
 
   try {
     const count = await StatsBackend.getTestCount();
+    console.log('[KGTI] getTestCount 返回:', count);
     setTestCountDisplay(count !== null ? (FALLBACK_TEST_COUNT + count) : FALLBACK_TEST_COUNT);
-  } catch (_) {
+  } catch (e) {
+    console.warn('[KGTI] fetchTestCount 异常:', e);
     setTestCountDisplay(FALLBACK_TEST_COUNT);
   }
 }

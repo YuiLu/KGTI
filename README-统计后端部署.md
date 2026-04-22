@@ -1,183 +1,331 @@
-# KGTI 数据收集部署指南（维格表方案）
+# KGTI 统计后端部署指南（Supabase 版）
 
-> 本项目使用 **维格表 (Vika)** 作为数据收集后端。
-> 用户提交问卷时，结果会静默写入维格表，你可以像操作 Excel 一样查看和管理所有数据。
+## 架构概览
 
-## 功能一览
+```
+┌──────────────┐     HTTPS      ┌───────────────────┐
+│  KGTI 前端   │ ──────────────→│   Supabase         │
+│ (EdgeOne     │  Supabase JS   │   PostgreSQL       │
+│  Pages 托管) │ ←──────────────│   (免费 500MB)     │
+└──────────────┘                └───────────────────┘
+```
 
-| 功能 | 说明 |
-|------|------|
-| **数据收集** | 用户提交问卷时，人格类型、五维分数、维度等级写入维格表 |
-| **测试人数** | 首页展示"已有 xx 位 Kiger 完成测试"，基底值 + 维格表实际记录数 |
-| **同型占比** | 结果页展示"当前共有 x% 的 Kiger 与你同为 XX 人格" |
+**无需服务器、无需中转服务**，前端通过 Supabase JS SDK 直接读写数据库。
 
-## 方案优势
+## 免费额度
 
-| 特性 | 说明 |
-|------|------|
-| **零后端** | 纯前端 `fetch` 调用 REST API，无需服务器 |
-| **国内极快** | 维格表服务器在国内，接口响应极快 |
-| **免费够用** | 个人免费版完全满足问卷数据收集 |
-| **可视化管理** | 在维格表网页端查看数据，支持筛选、排序、导出 Excel |
-| **静态 Token** | 不需要 OAuth 授权流程，一个 Token 搞定 |
+| 项目 | 免费版限制 |
+|------|-----------|
+| 数据库存储 | 500 MB（约 200 万条记录） |
+| API 请求 | 不限次 |
+| 带宽 | 5 GB / 月 |
+| 实时连接 | 200 并发 |
+| 项目数 | 2 个 |
 
----
-
-## 一、注册维格表
-
-1. 访问 [vika.cn](https://vika.cn)
-2. 使用微信或手机号注册并登录
+按日活 1,000 人估算，可免费使用 **4~5 年**。
 
 ---
 
-## 二、创建数据表
+## 部署步骤
 
-1. 登录后，点击左侧「**+**」创建一个新的维格表
-2. 将表格命名为 `KGTI测试结果`（名称随意）
-3. 创建以下 **4 列**（类型全部选「**单行文本**」即可）：
+### 第 1 步：创建 Supabase 项目
 
-| 列名 | 类型 | 说明 |
-|------|------|------|
-| `人格类型` | 单行文本 | 如 "SOUL"、"ROBO" 等 11 种人格类型 |
-| `五维分数` | 单行文本 | JSON 数组，如 "[78,65,42,55,80]" |
-| `维度等级` | 单行文本 | JSON 数组，如 "[3,2,1,4,2,3,1,2,4,3,2,1]" |
-| `提交时间` | 单行文本 | ISO 时间字符串 |
+1. 打开 https://supabase.com → 用 GitHub 登录
+2. 点 **New Project**
+3. 填写项目名（如 `kgti`），选 Region（推荐 **Tokyo** 或 **Singapore**）
+4. 设置数据库密码 → Create
 
-> 💡 **提示**：列名必须与上表完全一致（包括大小写），否则 API 会写入失败。
+### 第 2 步：执行建表 SQL
 
----
+1. 进入项目 Dashboard → 左侧菜单 **SQL Editor**
+2. 点 **New Query**
+3. 把 `supabase-setup.sql` 文件的全部内容粘贴进去
+4. 点 **Run** 执行
 
-## 三、获取 API Token
+成功后会创建两张表：
+- `test_results` — 测试结果（人格类型、五维分数、维度等级等）
+- `user_events` — 用户行为事件（分享、保存图片、停留时长等）
 
-1. 点击维格表左下角的 **个人头像**
-2. 进入「**用户中心**」→「**开发者配置**」
-3. 点击「**+**」生成 API Token（首次需绑定邮箱）
-4. **复制并妥善保管** Token
+### 第 3 步：确认配置
 
-> ⚠️ Token 泄露后他人可操作你的数据。如不慎泄露，可在同一页面重新生成。
-
----
-
-## 四、获取维格表 ID
-
-1. 在浏览器中打开你刚创建的维格表
-2. 查看地址栏，URL 格式类似：
-   ```
-   https://vika.cn/workbench/dstXXXXXXXXXX/viwYYYYYYYYYY
-   ```
-3. 其中 `dstXXXXXXXXXX`（以 `dst` 开头的部分）就是你的 **维格表 ID**
-
----
-
-## 五、配置项目
-
-打开 `app.js`，找到顶部的配置区域，填入你的 Token 和表格 ID：
+在 `app.js` 中确认以下配置已正确填写：
 
 ```javascript
-const VIKA_CONFIG = {
-  token: 'uskXXXXXXXXXXXXXX',        // 替换为你的 API Token
-  datasheetId: 'dstXXXXXXXXXX'        // 替换为你的维格表 ID
+const SUPABASE_CONFIG = {
+  supabaseUrl: 'https://xxxxx.supabase.co',   // 你的 Project URL
+  supabaseKey: 'sb_publishable_xxxx'           // 你的 Publishable API Key
 };
 ```
 
-还可以调整 `FALLBACK_TEST_COUNT` 作为测试人数的基底值（维格表实际记录数会叠加在此之上）：
+获取方式：Dashboard → Settings → API
 
-```javascript
-const FALLBACK_TEST_COUNT = 9038;  // 基底展示数字
+### 第 4 步：验证
+
+1. 在本地打开 `index.html`
+2. 完成一次测试
+3. 回到 Supabase Dashboard → Table Editor
+4. 检查 `test_results` 和 `user_events` 表中是否有新记录
+
+---
+
+## 数据安全
+
+### Row Level Security (RLS)
+
+已通过 SQL 脚本配置了严格的安全策略：
+
+| 表 | INSERT | SELECT | UPDATE | DELETE |
+|----|--------|--------|--------|--------|
+| test_results | ✅ 允许 | ✅ 允许（用于 count 统计） | ❌ 拒绝 | ❌ 拒绝 |
+| user_events | ✅ 允许 | ❌ 拒绝 | ❌ 拒绝 | ❌ 拒绝 |
+
+- 前端只能**插入**数据，不能修改或删除
+- `test_results` 允许读取是因为需要做 count 统计（显示测试人数和同型占比）
+- `user_events` **完全禁止前端读取**，只有你在 Dashboard 中才能查看
+
+### Publishable Key 安全性
+
+`publishable key` 本身是公开的（会出现在前端代码中），但安全性由 RLS 策略保证：
+- 即使拿到 key，也只能做 INSERT，不能批量导出数据
+- 不能修改或删除任何记录
+
+---
+
+## 数据收集字段
+
+### test_results 表
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| session_id | TEXT | 匿名用户标识（UUID，存在 localStorage） |
+| personality | TEXT | 人格类型 ROBO/PURE/SEXY/FAKE/HIDE/SHOW/RICH/SOUL |
+| model_scores | JSONB | 五维分数 [78, 65, 42, 55, 80] |
+| levels | JSONB | 12维度等级 [2, 1, 0, ...] |
+| test_number | INT | 该用户第几次测试 |
+| referrer | TEXT | 来源页面 |
+| utm_source | TEXT | 分享追踪标记 |
+| user_agent | TEXT | 浏览器信息 |
+| screen_size | TEXT | 屏幕尺寸 |
+| env | TEXT | 环境标识：`'prod'` 或 `'dev'` |
+| created_at | TIMESTAMPTZ | 提交时间 |
+
+### user_events 表
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| session_id | TEXT | 匿名用户标识 |
+| event_type | TEXT | 事件类型（见下方） |
+| event_data | JSONB | 附加数据 |
+| env | TEXT | 环境标识：`'prod'` 或 `'dev'` |
+| created_at | TIMESTAMPTZ | 事件时间 |
+
+### 事件类型一览
+
+| event_type | 触发时机 | event_data |
+|-----------|---------|------------|
+| `page_view` | 打开页面 | `{url, referrer, utm_source}` |
+| `test_start` | 点击"开始测试" | — |
+| `test_complete` | 完成测试出结果 | `{personality}` |
+| `share_native` | 使用系统分享 | `{personality}` |
+| `share_copy` | 复制分享文案 | `{personality}` |
+| `save_image` | 保存结果图片 | `{personality}` |
+| `retest` | 点击重新测试 | — |
+| `result_stay` | 离开结果页时 | `{seconds}` |
+
+---
+
+## 常用统计查询
+
+在 Supabase Dashboard → SQL Editor 中执行：
+
+### 总测试人数
+```sql
+SELECT COUNT(*) FROM test_results WHERE env = 'prod';
 ```
 
-> 完成后保存文件，部署网页即可。
+### 各人格类型分布
+```sql
+SELECT personality, COUNT(*) AS cnt,
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS pct
+FROM test_results
+WHERE env = 'prod'
+GROUP BY personality
+ORDER BY cnt DESC;
+```
+
+### 分享率
+```sql
+SELECT
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete') AS completed,
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type IN ('share_native','share_copy')) AS shared,
+  ROUND(
+    COUNT(DISTINCT session_id) FILTER (WHERE event_type IN ('share_native','share_copy')) * 100.0
+    / NULLIF(COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete'), 0), 1
+  ) AS share_rate_pct
+FROM user_events
+WHERE env = 'prod';
+```
+
+### 保存图片率（社交名片意愿指标）
+```sql
+SELECT
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete') AS completed,
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'save_image') AS saved,
+  ROUND(
+    COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'save_image') * 100.0
+    / NULLIF(COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete'), 0), 1
+  ) AS save_rate_pct
+FROM user_events
+WHERE env = 'prod';
+```
+
+### 各人格类型分享率对比
+```sql
+SELECT
+  r.personality,
+  COUNT(DISTINCT r.session_id) AS test_count,
+  COUNT(DISTINCT e.session_id) AS share_count,
+  ROUND(COUNT(DISTINCT e.session_id) * 100.0 / NULLIF(COUNT(DISTINCT r.session_id), 0), 1) AS share_rate
+FROM test_results r
+LEFT JOIN user_events e ON r.session_id = e.session_id
+  AND e.event_type IN ('share_native','share_copy')
+  AND e.env = 'prod'
+WHERE r.env = 'prod'
+GROUP BY r.personality
+ORDER BY share_rate DESC;
+```
+
+### 平均结果页停留时长
+```sql
+SELECT ROUND(AVG((event_data->>'seconds')::int), 1) AS avg_stay_seconds
+FROM user_events WHERE event_type = 'result_stay' AND env = 'prod';
+```
+
+### 重测率
+```sql
+SELECT
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'retest') AS retest_users,
+  COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete') AS all_users,
+  ROUND(
+    COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'retest') * 100.0
+    / NULLIF(COUNT(DISTINCT session_id) FILTER (WHERE event_type = 'test_complete'), 0), 1
+  ) AS retest_rate_pct
+FROM user_events
+WHERE env = 'prod';
+```
 
 ---
 
-## 六、验证是否成功
-
-1. 部署网页后，自己完成一次测试
-2. 打开维格表页面，刷新，应该能看到新增的一行数据
-3. 打开浏览器 F12 → Console，应该能看到：
-   ```
-   [StatsBackend] 维格表数据收集已初始化
-   [StatsBackend] 结果已提交到维格表
-   ```
-4. 首页的"已有 xx 位 Kiger 完成测试"应该会动态更新
-5. 结果页会显示"当前共有 x% 的 Kiger 与你同为 XX 人格"
-
----
-
-## 七、数据管理
-
-在维格表界面你可以：
-
-- 🔍 **筛选**：按人格类型筛选，查看某类人格的所有提交
-- 📊 **排序**：按提交时间排序
-- 📥 **导出**：导出为 Excel / CSV 文件做进一步分析
-- 📈 **统计视图**：使用维格表的「看板」「画册」等视图做可视化
-- 🎯 **返图翻车统计**：按「返图翻车应对」列分组，查看 A/B/C 各选项的选择分布
-
----
-
-## 八、关于 Token 安全
-
-由于本项目是纯前端静态页面，Token 存在于 JS 代码中。当前已采取的安全措施：
-
-- 🔒 **混淆存储**：Token 经过 Base64 + 字符偏移双重编码，源码中不会出现明文
-- 🔇 **静默运行**：控制台不输出任何含 Token 的日志信息
-- ⚠️ 但要注意：前端混淆**只能提高门槛，不能完全防止**，有经验的开发者仍然可以通过调试工具还原
-
-风险评估：
-
-- ✅ 本表只存放问卷数据，无敏感信息
-- ✅ 即使被人发现 Token，最多也只能往表里写垃圾数据或读取问卷结果
-- ✅ 如果发现异常，随时可以在维格表「开发者配置」中重新生成 Token
-
-如果你有更高安全需求，可以：
-1. 单独创建一个维格表账号，专门用于本项目
-2. 该账号只放这一张数据收集表，降低风险
-3. 部署一个简单的 Serverless 函数（如 Cloudflare Workers / Vercel Edge Function）做代理，Token 放在服务端环境变量中，前端完全不接触 Token
-
----
-
-## 九、关于统计读取
+## Dev / Prod 环境分离
 
 ### 工作原理
-- **测试人数**：通过维格表 GET API（`pageSize=1`）获取 `total` 字段，加上 `FALLBACK_TEST_COUNT` 基底值展示
-- **同型占比**：遍历所有记录的「人格类型」字段，统计各类型数量，计算当前用户类型的百分比
-- **缓存机制**：读取的统计数据缓存 5 分钟，避免频繁请求
 
-### 性能说明
-- 维格表免费版 API 每单次最多返回 1000 条记录
-- 当数据量超过 1000 条时，会自动分页拉取（同型占比统计时）
-- 测试人数接口非常轻量（只请求 1 条记录获取 total）
+代码会**自动检测**当前环境并给数据打标签 `env: 'prod'` 或 `env: 'dev'`：
+
+| 访问方式 | 判定为 | 说明 |
+|---------|--------|------|
+| 正式域名（自定义域名或 `<project>.pages.dev`） | `prod` | 推送 `main` 分支后自动构建 |
+| Preview URL（`<hash>.<project>.pages.dev`） | `dev` | 推送非 main 分支后自动构建 |
+| `localhost` / `127.0.0.1` / `file://` | `dev` | 本地开发 |
+| URL 带 `?env=dev` 参数 | `dev` | 手动强制指定 |
+
+### EdgeOne Pages 操作方式
+
+你现在的工作流（推 `main` → 自动构建 prod）**完全不需要改**。只需要加一个 dev 分支：
+
+```bash
+# 日常开发流程
+git checkout -b dev          # 创建 dev 分支
+# ... 修改代码 ...
+git add . && git commit -m "feature: xxx"
+git push origin dev          # 推送 → EdgeOne 自动构建 Preview 环境
+# 在 Preview URL 上测试
+
+# 测试通过后合并到 main
+git checkout main
+git merge dev
+git push origin main         # 推送 → EdgeOne 自动构建 Production 环境
+```
+
+### 统计查询时过滤环境
+
+```sql
+-- 只看 prod 数据（正式统计）
+SELECT COUNT(*) FROM test_results WHERE env = 'prod';
+
+-- 只看 dev 数据（调试验证）
+SELECT * FROM test_results WHERE env = 'dev' ORDER BY created_at DESC LIMIT 20;
+
+-- 定期清理 dev 测试数据
+DELETE FROM user_events WHERE env = 'dev';
+DELETE FROM test_results WHERE env = 'dev';
+```
 
 ---
 
-## 十、常见问题
+## 从 Vika 迁移历史数据
 
-### Q: 提交后维格表没有新数据？
-- 检查 `app.js` 中 `VIKA_CONFIG` 的 token 和 datasheetId 是否正确
-- 检查维格表中的列名是否与代码中完全一致（`人格类型`、`五维分数`、`维度等级`、`提交时间`）
-- 打开 F12 Console 查看是否有报错
+如果你之前在 Vika（维格表）中积累了测试数据，有三种迁移方式：
 
-### Q: 首页人数不更新？
-- 确认维格表中已有数据
-- 确认 Token 有读取权限
-- 如果维格表配置未完成，会展示 `FALLBACK_TEST_COUNT` 兜底值
+### 方式 A：手动插入（数据量 < 50 条）
 
-### Q: 接口返回 403？
-- Token 可能已失效，重新生成即可
+在 Supabase SQL Editor 中直接执行 INSERT：
 
-### Q: 免费版有限制吗？
-- 维格表免费版有行数和 API 调用限制，但对于问卷收集场景完全够用
-- 具体限制以 [维格表官方定价](https://vika.cn/pricing) 为准
+```sql
+INSERT INTO test_results (session_id, personality, model_scores, levels, env, created_at)
+VALUES
+  ('legacy-vika', 'ROBO', '[78,65,42,55,80]', '[2,1,0,1,2,0,2,1,0,1,2,1]', 'prod', '2025-04-15T10:30:00+08:00'),
+  ('legacy-vika', 'PURE', '[60,72,38,50,65]', '[1,2,0,1,1,0,2,1,0,1,2,1]', 'prod', '2025-04-15T11:00:00+08:00');
+```
+
+### 方式 B：CSV 导入（通过 Supabase Dashboard）
+
+1. 从 Vika 网页端导出 CSV（点右上角 ⋮ → 导出为 CSV）
+2. 整理列名匹配 Supabase 表结构
+3. 在 Supabase Dashboard → Table Editor → test_results → Insert → Import from CSV
+
+### 方式 C：Python 脚本自动迁移（推荐，数据量大时）
+
+```bash
+pip install requests
+python migrate_vika_to_supabase.py
+```
+
+脚本会：
+1. 通过 Vika API 分页读取所有记录
+2. 自动转换字段格式
+3. 批量写入 Supabase
+4. 所有迁移数据统一标记 `session_id = 'legacy-vika'`
+
+> ⚠️ 使用前需在脚本中填写 `VIKA_TOKEN` 和 `VIKA_DATASHEET_ID`。
+> 可以在浏览器控制台解码旧代码中的混淆配置获得。
+
+| | Vika（旧） | Supabase（新） |
+|---|-----------|---------------|
+| 月调用上限 | 1 万次 | **不限** |
+| 存储 | 5 万行 | **500 MB（~200 万行）** |
+| 查询能力 | 简单筛选 | **完整 SQL** |
+| 行为追踪 | 无 | **8 种事件类型** |
+| 需要中转服务 | 否 | **否** |
+| 费用 | 免费 | **免费** |
 
 ---
 
-## 十一、关键链接
+## 分享传播追踪
 
-| 名称 | 链接 |
-|------|------|
-| 维格表官网 | https://vika.cn |
-| 维格表 API 文档 | https://developers.vika.cn/api/reference/ |
-| 创建记录 API | https://developers.vika.cn/api/create-records/ |
-| 查询记录 API | https://developers.vika.cn/api/get-records/ |
-| 快速上手 | https://developers.vika.cn/api/quick-start/ |
+在分享链接后加上 `?utm_source=xxx` 参数即可追踪传播链：
+
+```
+https://你的域名/?utm_source=bilibili
+https://你的域名/?utm_source=wechat
+https://你的域名/?utm_source=xiaohongshu
+```
+
+查询传播效果：
+```sql
+SELECT utm_source, COUNT(*) AS visitors
+FROM test_results
+WHERE utm_source IS NOT NULL
+GROUP BY utm_source
+ORDER BY visitors DESC;
+```
