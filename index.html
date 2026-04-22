@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KGTI - Kigurumi Generation Type Indicator</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="description" content="KGTI（Kigurumi人格类型指标）—— 一款纯娱乐性质的Kig圈自嘲式人格测试">
+  <meta property="og:title" content="KGTI - 你是哪种Kiger？">
+  <meta property="og:description" content="面具之下，灵魂几何？来测测你的Kig人格！">
+</head>
+<body>
+  <div id="app">
+    <!-- 开始页 -->
+    <section id="page-start" class="page active">
+      <div class="start-container">
+        <div class="logo-area">
+          <canvas id="logo-canvas" width="200" height="200"></canvas>
+        </div>
+        <h1 class="title glitch" data-text="KGTI">KGTI</h1>
+        <p class="subtitle">Kigurumi Generation Type Indicator</p>
+        <p class="desc">面具之下，灵魂几何？<br>一款纯娱乐性质的Kig圈自嘲式"人格"测试</p>
+        <div class="disclaimer">⚠️ 本测试无任何科学依据，纯属整活</div>
+        <button id="btn-start" class="btn-primary" onclick="startTest()">
+          <span>戴 上 面 具 开 始 测 试</span>
+        </button>
+        <div class="footer-note">已有 <span id="test-count">8,964</span> 位Kiger完成测试</div>
+      </div>
+    </section>
+
+    <!-- 答题页 -->
+    <section id="page-quiz" class="page">
+      <div class="quiz-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+          <span class="progress-text" id="progress-text">1/15</span>
+        </div>
+        <div class="question-card" id="question-card">
+          <div class="question-number" id="q-number">Q1</div>
+          <div class="question-text" id="q-text"></div>
+          <div class="options" id="q-options"></div>
+        </div>
+        <div class="quiz-nav">
+          <button class="btn-secondary" id="btn-prev" onclick="prevQuestion()" disabled>← 上一题</button>
+          <button class="btn-secondary" id="btn-skip" onclick="skipQuestion()">跳过 →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 计算中 -->
+    <section id="page-loading" class="page">
+      <div class="loading-container">
+        <div class="mask-animation">
+          <canvas id="loading-canvas" width="160" height="160"></canvas>
+        </div>
+        <p class="loading-text">正在解析你的Kig灵魂...</p>
+        <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+      </div>
+    </section>
+
+    <!-- 结果页 -->
+    <section id="page-result" class="page">
+      <div class="result-container">
+        <div class="result-card" id="result-card">
+          <div class="result-badge" id="result-badge"></div>
+          <canvas id="result-avatar" width="280" height="280"></canvas>
+          <h2 class="result-type" id="result-type"></h2>
+          <p class="result-name" id="result-name"></p>
+          <p class="result-quote" id="result-quote"></p>
+          <p class="result-desc" id="result-desc"></p>
+          <div class="radar-chart-area">
+            <canvas id="radar-canvas" width="300" height="300"></canvas>
+          </div>
+          <div class="dimension-tags" id="dimension-tags"></div>
+        </div>
+        <div class="result-actions">
+          <button class="btn-primary" onclick="shareResult()">📋 复制分享文案</button>
+          <button class="btn-secondary" onclick="saveImage()">💾 保存结果图片</button>
+          <button class="btn-secondary" onclick="restartTest()">🔄 重新测试</button>
+        </div>
+        <div class="share-toast" id="share-toast">已复制到剪贴板！</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="questions.js"></script>
+  <script src="scoring.js"></script>
+  <script src="avatar.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
