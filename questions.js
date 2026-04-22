@@ -278,14 +278,22 @@ function pickQuestions() {
   });
 
   const picked = [];
-  const groups = Object.keys(grouped).sort();
+  const mandatoryQuestionId = 'g5q5';
+  const mandatory = FULL_QUESTIONS.find(q => q.id === mandatoryQuestionId);
 
-  // 每组抽 3 题
-  groups.forEach(g => {
-    const pool = [...grouped[g]];
+  if (mandatory) picked.push(mandatory);
+
+  // 第1-4组各抽3题
+  [1, 2, 3, 4].forEach(g => {
+    const pool = [...(grouped[g] || [])];
     shuffle(pool);
     picked.push(...pool.slice(0, 3));
   });
+
+  // 第5组除必出题外再抽2题，保证总数15题
+  const group5Pool = (grouped[5] || []).filter(q => q.id !== mandatoryQuestionId);
+  shuffle(group5Pool);
+  picked.push(...group5Pool.slice(0, 2));
 
   shuffle(picked);
   return picked;

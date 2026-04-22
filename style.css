@@ -464,6 +464,70 @@ body {
   width: 100%;
 }
 
+.creator-card {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin: 4px auto 0;
+  padding: 10px 12px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+}
+
+.creator-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.16);
+}
+
+.creator-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.creator-name {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.creator-links {
+  display: flex;
+  gap: 8px;
+}
+
+.creator-link {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  text-decoration: none;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.creator-link img {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.creator-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  box-shadow: 0 0 10px rgba(224,64,251,0.2);
+}
+
 .share-toast {
   position: fixed;
   bottom: 40px;
@@ -496,6 +560,7 @@ body {
   .option-btn { font-size: 14px; padding: 12px 14px; }
   .result-type { font-size: 36px; }
   .result-card { padding: 28px 20px; }
+  .creator-card { width: 100%; }
 }
 
 /* ===== 滚动条 ===== */

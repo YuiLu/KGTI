@@ -44,7 +44,7 @@ const PERSONALITY_INFO = {
     name: '人机',
     category: '表现与风格派',
     emoji: '📸',
-    quote: '"只要我不动，别人就看不出我手脚不知道往哪放。"',
+    quote: '"人机本机，拍照只会剪刀手"',
     desc: '姿势僵硬、放不开，无角色代入感，典型镜头拘谨党。戴上面具的你就像一个刚开机还没下载驱动的机器人。',
     colors: { primary: '#78909c', secondary: '#455a64', accent: '#b0bec5' },
     badgeColor: '#78909c'
@@ -53,7 +53,7 @@ const PERSONALITY_INFO = {
     name: '清水',
     category: '表现与风格派',
     emoji: '📸',
-    quote: '"可爱治愈才是Kig的初心，涩涩达咩！"',
+    quote: '"只拍正片，涩涩达咩"',
     desc: '纯爱娃党，拒绝擦边，坚守清爽风格，圈中清流。你是Kig圈的一股清泉，用可爱治愈世界。',
     colors: { primary: '#4fc3f7', secondary: '#0288d1', accent: '#b3e5fc' },
     badgeColor: '#4fc3f7'
@@ -62,7 +62,7 @@ const PERSONALITY_INFO = {
     name: '烧娃',
     category: '表现与风格派',
     emoji: '📸',
-    quote: '"面具一戴，谁都不爱，我就是全场最辣的娃。"',
+    quote: '"纯🔥🐔啊"',
     desc: '自信舒展，娃态撩人，天然镜头优势，自带致命吸引力。你是舞池中央最亮的那颗星。',
     colors: { primary: '#ef5350', secondary: '#c62828', accent: '#ff8a80' },
     badgeColor: '#ef5350'
@@ -71,7 +71,7 @@ const PERSONALITY_INFO = {
     name: '魅魔',
     category: '表现与风格派',
     emoji: '📸',
-    quote: '"不需要露什么，一个眼神（虽然眼片不会动）就能拿捏你。"',
+    quote: '"行走榨汁机，要不要来玩点刺激的"',
     desc: '镜头感拉满，氛围感十足，一举一动自带娃圈吸引力，男女通吃。你是行走的氛围制造机。',
     colors: { primary: '#ab47bc', secondary: '#6a1b9a', accent: '#ea80fc' },
     badgeColor: '#ab47bc'
@@ -80,7 +80,7 @@ const PERSONALITY_INFO = {
     name: '伪人',
     category: '表现与风格派',
     emoji: '📸',
-    quote: '"我不是在扮演角色，我就是千面人本身。"',
+    quote: '"千头千面，风格切换毫无违和，拍啥都好看"',
     desc: '切换多种娃态，风格多变，适配不同角色，你根本猜不透面具下是谁。你是Kig界的演技派。',
     colors: { primary: '#7e57c2', secondary: '#4527a0', accent: '#b388ff' },
     badgeColor: '#7e57c2'
@@ -89,7 +89,7 @@ const PERSONALITY_INFO = {
     name: '社恐',
     category: '社交与活跃派',
     emoji: '🤝',
-    quote: '"外面的世界太可怕了，还是家里的空调和床最懂我。"',
+    quote: '"啊 今天跟人讲太多话有点累 我先回家了.jpg"',
     desc: '极度怕社死，不敢外拍，只在家变娃对着镜子自拍。你的Kig生涯=卧室写真集。',
     colors: { primary: '#90a4ae', secondary: '#546e7a', accent: '#cfd8dc' },
     badgeColor: '#90a4ae'
@@ -98,7 +98,7 @@ const PERSONALITY_INFO = {
     name: '社牛',
     category: '社交与活跃派',
     emoji: '🤝',
-    quote: '"看我看我！只要我不尴尬，尴尬的就是路人！"',
+    quote: '"反正看不见本体，只要我不尴尬，尴尬的就是路人"',
     desc: '无惧路人目光，外拍大方，主动贴贴同好，漫展显眼包。你是每个娃聚的气氛担当。',
     colors: { primary: '#ffa726', secondary: '#e65100', accent: '#ffcc02' },
     badgeColor: '#ffa726'
@@ -107,7 +107,7 @@ const PERSONALITY_INFO = {
     name: '小透明',
     category: '社交与活跃派',
     emoji: '🤝',
-    quote: '"我的Kig只属于我自己，不需要被谁看见。"',
+    quote: '"不混圈不社交不发帖，自娱自乐查无此人"',
     desc: '不混圈、不社交，独自变娃，低调到没存在感，自娱自乐。你是Kig界的独行侠。',
     colors: { primary: '#78909c', secondary: '#37474f', accent: '#b0bec5' },
     badgeColor: '#78909c'
@@ -116,7 +116,7 @@ const PERSONALITY_INFO = {
     name: '富婆/少爷',
     category: '资源与心态派',
     emoji: '💰',
-    quote: '"撞脸不可怕，谁穷谁尴尬，绝版定制才配得上我的气质。"',
+    quote: '"抱歉，有钱真的可以为所欲为"',
     desc: '多头多皮，极度抗拒量产克隆人，舍得投入，吃土也要定制拉满的财力玩家。',
     colors: { primary: '#ffd54f', secondary: '#f9a825', accent: '#fff176' },
     badgeColor: '#ffd54f'
@@ -125,7 +125,7 @@ const PERSONALITY_INFO = {
     name: '高僧',
     category: '资源与心态派',
     emoji: '💰',
-    quote: '"随缘出警，随缘外拍，量产定制皆是虚妄，套皮亦是修行。"',
+    quote: '"娃是不变的，头是吃灰的，毛是不理的，图是不修的"',
     desc: '佛系玩娃，拒绝内卷，头壳吃灰也无所谓，爱好而已不用较真。你是Kig界的世外高人。',
     colors: { primary: '#a5d6a7', secondary: '#388e3c', accent: '#c8e6c9' },
     badgeColor: '#a5d6a7'
@@ -134,7 +134,7 @@ const PERSONALITY_INFO = {
     name: '本命',
     category: '隐藏人格',
     emoji: '🌟',
-    quote: '"脱下皮囊我是凡人，戴上头壳我是神明。"',
+    quote: '"戴上头壳才是本体，答应咱变一辈子娃好吗"',
     desc: 'Kig为人生热爱，全情投入，熟练运用各类Kig工具，视为精神寄托。你不是在cosplay，你就是角色本身。',
     colors: { primary: '#e040fb', secondary: '#aa00ff', accent: '#ea80fc' },
     badgeColor: '#e040fb'

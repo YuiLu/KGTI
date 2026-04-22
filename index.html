@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KGTI - Kigurumi Generation Type Indicator</title>
+  <title>KGTI - Kigurumi Type Indicator</title>
   <link rel="stylesheet" href="style.css">
   <meta name="description" content="KGTI（Kigurumi人格类型指标）—— 一款纯娱乐性质的Kig圈自嘲式人格测试">
   <meta property="og:title" content="KGTI - 你是哪种Kiger？">
@@ -18,7 +18,7 @@
           <img id="logo-img" src="assets/SOUL.png" alt="KGTI Logo" width="200" height="200">
         </div>
         <h1 class="title glitch" data-text="KGTI">KGTI</h1>
-        <p class="subtitle">Kigurumi Generation Type Indicator</p>
+        <p class="subtitle">Kigurumi Type Indicator</p>
         <p class="desc">面具之下，灵魂几何？<br>一款纯娱乐性质的Kig圈自嘲式"人格"测试</p>
         <div class="disclaimer">⚠️ 本测试无任何科学依据，纯属整活</div>
         <button id="btn-start" class="btn-primary" onclick="startTest()">
@@ -42,7 +42,7 @@
         </div>
         <div class="quiz-nav">
           <button class="btn-secondary" id="btn-prev" onclick="prevQuestion()" disabled>← 上一题</button>
-          <button class="btn-secondary" id="btn-skip" onclick="skipQuestion()">跳过 →</button>
+          <button class="btn-secondary" id="btn-next" onclick="nextQuestion()" disabled>下一题 →</button>
         </div>
       </div>
     </section>
@@ -74,9 +74,30 @@
           <div class="dimension-tags" id="dimension-tags"></div>
         </div>
         <div class="result-actions">
-          <button class="btn-primary" onclick="shareResult()">📋 复制分享文案</button>
+          <button class="btn-primary" onclick="shareResult()">🔗 分享结果</button>
+          <button class="btn-secondary" onclick="copyShareText()">📋 复制分享文案</button>
           <button class="btn-secondary" onclick="saveImage()">💾 保存结果图片</button>
           <button class="btn-secondary" onclick="restartTest()">🔄 重新测试</button>
+        </div>
+        <div class="creator-card">
+          <img src="assets/avatar.jpeg" alt="Yui Lu" class="creator-avatar" width="56" height="56">
+          <div class="creator-text">
+            <p class="creator-name">作者：Yui Lu</p>
+            <div class="creator-links">
+              <a class="creator-link" href="https://b23.tv/Kw1Z4fN" target="_blank" rel="noopener noreferrer" aria-label="B站 Yui_06" title="B站 Yui_06">
+                <img src="assets/icon-bilibili.svg" alt="Bilibili" width="16" height="16">
+              </a>
+              <a class="creator-link" href="https://b23.tv/Ss4aFjy" target="_blank" rel="noopener noreferrer" aria-label="B站 YuiLu_" title="B站 YuiLu_">
+                <img src="assets/icon-bilibili.svg" alt="Bilibili" width="16" height="16">
+              </a>
+              <a class="creator-link" href="https://xhslink.com/m/6cv0fMPO6oI" target="_blank" rel="noopener noreferrer" aria-label="小红书 Yui" title="小红书 Yui">
+                <img src="assets/icon-xhs.svg" alt="Xiaohongshu" width="16" height="16">
+              </a>
+              <a class="creator-link" href="https://v.douyin.com/dC2XB-zRZbU/" target="_blank" rel="noopener noreferrer" aria-label="抖音 Yui" title="抖音 Yui">
+                <img src="assets/icon-douyin.svg" alt="Douyin" width="16" height="16">
+              </a>
+            </div>
+          </div>
         </div>
         <div class="share-toast" id="share-toast">已复制到剪贴板！</div>
       </div>

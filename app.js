@@ -5,6 +5,13 @@
 let currentQuestions = [];
 let currentIndex = 0;
 let answers = [];
+let hasCountedCurrentRun = false;
+
+// 将此地址替换为你部署好的 Google Apps Script Web App URL。
+// GET: 返回 { count: number }
+// POST: 返回 { count: number }，并在表内 +1
+const STATS_API_URL = '';
+const FALLBACK_TEST_COUNT = 9038;
 
 // ---- 工具函数 ----
 function hexToRGBA(hex, alpha) {
@@ -23,7 +30,7 @@ function drawRadarChart(canvasId, scores, colors) {
   const h = canvas.height;
   const cx = w / 2;
   const cy = h / 2;
-  const maxR = Math.min(cx, cy) - 40;
+  const maxR = Math.min(cx, cy) - 56;
   const labels = ['生存力', '表现力', '社交力', '经济力'];
   const n = labels.length;
 
@@ -120,6 +127,7 @@ function startTest() {
   currentQuestions = pickQuestions();
   currentIndex = 0;
   answers = [];
+  hasCountedCurrentRun = false;
   showPage('page-quiz');
   renderQuestion();
 }
@@ -156,9 +164,7 @@ function renderQuestion() {
   });
 
   // 导航按钮状态
-  document.getElementById('btn-prev').disabled = currentIndex === 0;
-  document.getElementById('btn-skip').textContent =
-    currentIndex === total - 1 ? '提交 →' : '跳过 →';
+  updateNavButtons(q.id, total);
 
   // 卡片动画
   const card = document.getElementById('question-card');
@@ -184,15 +190,7 @@ function selectOption(idx) {
     btn.classList.toggle('selected', i === idx);
   });
 
-  // 延迟进入下一题
-  setTimeout(() => {
-    if (currentIndex < currentQuestions.length - 1) {
-      currentIndex++;
-      renderQuestion();
-    } else {
-      submitTest();
-    }
-  }, 350);
+  updateNavButtons(q.id, currentQuestions.length);
 }
 
 // ---- 上一题 ----
@@ -203,14 +201,29 @@ function prevQuestion() {
   }
 }
 
-// ---- 跳过 ----
-function skipQuestion() {
+// ---- 下一题 ----
+function nextQuestion() {
+  const q = currentQuestions[currentIndex];
+  const hasAnswer = answers.some(a => a.questionId === q.id);
+  if (!hasAnswer) return;
+
   if (currentIndex < currentQuestions.length - 1) {
     currentIndex++;
     renderQuestion();
   } else {
     submitTest();
   }
+}
+
+function updateNavButtons(questionId, total) {
+  const prevBtn = document.getElementById('btn-prev');
+  const nextBtn = document.getElementById('btn-next');
+  if (!prevBtn || !nextBtn) return;
+
+  prevBtn.disabled = currentIndex === 0;
+  const hasAnswer = answers.some(a => a.questionId === questionId);
+  nextBtn.disabled = !hasAnswer;
+  nextBtn.textContent = currentIndex === total - 1 ? '提交 →' : '下一题 →';
 }
 
 // ---- 提交测试 ----
@@ -303,14 +316,15 @@ function showResult() {
     modelScores,
     levels
   };
+
+  if (!hasCountedCurrentRun) {
+    hasCountedCurrentRun = true;
+    incrementTestCount();
+  }
 }
 
-// ---- 分享 ----
-function shareResult() {
-  const r = window.__kgtiResult;
-  if (!r) return;
-
-  const text = [
+function buildShareText(r) {
+  return [
     `🎭 我的KGTI测试结果是：【${r.personality}】${r.info.name}！`,
     `${r.info.quote}`,
     '',
@@ -321,9 +335,41 @@ function shareResult() {
     `🔗 来测测你是哪种Kiger → ${window.location.href}`,
     `#KGTI #Kigurumi人格测试`
   ].join('\n');
+}
+
+// ---- 分享结果 ----
+async function shareResult() {
+  const r = window.__kgtiResult;
+  if (!r) return;
+
+  const text = buildShareText(r);
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `我的KGTI结果：${r.personality}`,
+        text,
+        url: window.location.href
+      });
+      return;
+    } catch (_) {
+      // 用户取消分享时静默处理，继续提供复制兜底
+    }
+  }
+
+  await copyShareText();
+}
+
+// ---- 复制分享文案 ----
+async function copyShareText() {
+  const r = window.__kgtiResult;
+  if (!r) return;
+
+  const text = buildShareText(r);
 
   navigator.clipboard.writeText(text).then(() => {
     const toast = document.getElementById('share-toast');
+    toast.textContent = '已复制分享文案！';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2000);
   }).catch(() => {
@@ -335,6 +381,7 @@ function shareResult() {
     document.execCommand('copy');
     document.body.removeChild(ta);
     const toast = document.getElementById('share-toast');
+    toast.textContent = '已复制分享文案！';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2000);
   });
@@ -367,7 +414,7 @@ function saveImage() {
   ctx.fillStyle = '#8888aa';
   ctx.font = '14px "Microsoft YaHei"';
   ctx.textAlign = 'center';
-  ctx.fillText('KGTI · Kigurumi Generation Type Indicator', w / 2, 40);
+  ctx.fillText('KGTI · Kigurumi Type Indicator', w / 2, 40);
 
   // 头像
   const avatarImg = document.getElementById('result-avatar');
@@ -401,6 +448,13 @@ function saveImage() {
   ctx.fillText('面具之下，灵魂几何？', w / 2, h - 40);
   ctx.fillText(window.location.href, w / 2, h - 20);
 
+  // 右下角作者署名
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#9aa0b5';
+  ctx.font = '12px "Microsoft YaHei"';
+  ctx.fillText('@YuiLu_', w - 16, h - 16);
+  ctx.textAlign = 'center';
+
   // 下载
   const link = document.createElement('a');
   link.download = `KGTI_${r.personality}_${r.info.name}.png`;
@@ -432,7 +486,47 @@ function restartTest() {
 
 // ---- 初始化 ----
 document.addEventListener('DOMContentLoaded', () => {
-  // 随机测试人数
-  const count = 8964 + Math.floor(Math.random() * 500);
-  document.getElementById('test-count').textContent = count.toLocaleString();
+  fetchTestCount();
 });
+
+function setTestCountDisplay(count) {
+  const el = document.getElementById('test-count');
+  if (!el) return;
+  const safeCount = Number.isFinite(count) && count >= 0
+    ? Math.floor(count)
+    : FALLBACK_TEST_COUNT;
+  el.textContent = safeCount.toLocaleString();
+}
+
+async function fetchTestCount() {
+  if (!STATS_API_URL) {
+    setTestCountDisplay(FALLBACK_TEST_COUNT);
+    return;
+  }
+
+  try {
+    const res = await fetch(STATS_API_URL, { method: 'GET' });
+    const data = await res.json();
+    setTestCountDisplay(Number(data.count));
+  } catch (_) {
+    setTestCountDisplay(FALLBACK_TEST_COUNT);
+  }
+}
+
+async function incrementTestCount() {
+  if (!STATS_API_URL) return;
+
+  try {
+    const res = await fetch(STATS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'increment' })
+    });
+    const data = await res.json();
+    if (typeof data.count !== 'undefined') {
+      setTestCountDisplay(Number(data.count));
+    }
+  } catch (_) {
+    // 统计上报失败不影响主流程
+  }
+}
